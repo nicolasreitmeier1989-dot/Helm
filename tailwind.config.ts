@@ -9,20 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Flipped scale: ink-0 = pure white, ink-1000 = pure black.
+        // Lower indices = lighter (backgrounds), higher = darker (text).
         ink: {
-          0: "#000000",
-          50: "#0a0a0a",
-          100: "#111111",
-          200: "#1a1a1a",
-          300: "#262626",
-          400: "#404040",
-          500: "#666666",
-          600: "#888888",
-          700: "#a8a8a8",
-          800: "#cfcfcf",
-          900: "#e8e8e8",
-          950: "#f5f5f5",
-          1000: "#ffffff",
+          0: "#ffffff",
+          50: "#fafafa",
+          100: "#f5f5f5",
+          200: "#ebebeb",
+          300: "#dcdcdc",
+          400: "#bdbdbd",
+          500: "#8a8a8a",
+          600: "#5a5a5a",
+          700: "#3d3d3d",
+          800: "#262626",
+          900: "#141414",
+          950: "#0a0a0a",
+          1000: "#000000",
         },
       },
       fontFamily: {

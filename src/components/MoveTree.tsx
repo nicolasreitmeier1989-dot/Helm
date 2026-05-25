@@ -152,7 +152,7 @@ export function MoveTree({
             const y2 = y + nodeH / 2;
             const mx = (x1 + x2) / 2;
             const isHL = highlighted.has(node.id) && highlighted.has(node.parentId);
-            const stroke = isHL ? "#e8e8e8" : "#404040";
+            const stroke = isHL ? "#141414" : "#bdbdbd";
             const opacity = isHL ? 1 : 0.5 + node.probability * 0.4;
             const width = isHL ? 1.6 : 0.6 + node.probability * 1.2;
             return (
@@ -167,7 +167,7 @@ export function MoveTree({
                 <text
                   x={mx}
                   y={(y1 + y2) / 2 - 4}
-                  fill={isHL ? "#e8e8e8" : "#888"}
+                  fill={isHL ? "#141414" : "#8a8a8a"}
                   fontSize="9"
                   fontFamily="JetBrains Mono, monospace"
                   textAnchor="middle"

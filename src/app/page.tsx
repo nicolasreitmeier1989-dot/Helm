@@ -10,11 +10,16 @@ import {
 import { MoveTree } from "@/components/MoveTree";
 import { NodeDetail, PathPanel, ThreatPanel } from "@/components/Inspector";
 import { simulate, threatIndex } from "@/lib/engine";
+import { stashBriefing } from "@/lib/briefing";
 import {
   DEFAULT_COMPETITOR,
   DEFAULT_OWN,
   DEFAULT_SCENARIOS,
 } from "@/lib/presets";
+import { EngineToggle, type EngineMode } from "@/components/EngineToggle";
+import { SensitivityPanel } from "@/components/SensitivityPanel";
+import { ProjectPanel } from "@/components/ProjectPanel";
+import type { Simulation } from "@/lib/types";
 
 export default function HelmPage() {
   const [competitor, setCompetitor] = useState(DEFAULT_COMPETITOR);
@@ -23,38 +28,104 @@ export default function HelmPage() {
   const [seedNonce, setSeedNonce] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState("--------");
+  const [engine, setEngine] = useState<EngineMode>("HEURISTIC");
+  const [llmSim, setLlmSim] = useState<Simulation | null>(null);
+  const [llmRunning, setLlmRunning] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Stable but per-mount session id
-    const id = Math.random().toString(36).slice(2, 8).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const id =
+      Math.random().toString(36).slice(2, 8).toUpperCase() +
+      "-" +
+      Math.random().toString(36).slice(2, 6).toUpperCase();
     setSessionId(id);
   }, []);
 
-  const sim = useMemo(
-    () => simulate(competitor, own, scenarios, { seed: `${seedNonce}|${competitor.name}|${own.openingMove}` }),
+  // Heuristic simulation — instantaneous, always available.
+  const heuristicSim = useMemo(
+    () =>
+      simulate(competitor, own, scenarios, {
+        seed: `${seedNonce}|${competitor.name}|${own.openingMove}`,
+      }),
     [competitor, own, scenarios, seedNonce],
   );
 
+  const sim = engine === "CLAUDE" && llmSim ? llmSim : heuristicSim;
   const idx = threatIndex(sim);
+
+  const runClaude = async () => {
+    setLlmRunning(true);
+    setLlmError(null);
+    try {
+      const resp = await fetch("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitor, own, scenarios }),
+      });
+      if (!resp.ok) {
+        const data = (await resp.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(data.message || data.error || `HTTP ${resp.status}`);
+      }
+      const data = (await resp.json()) as { simulation: Simulation };
+      setLlmSim(data.simulation);
+    } catch (e) {
+      setLlmError(e instanceof Error ? e.message : "unknown");
+    } finally {
+      setLlmRunning(false);
+    }
+  };
+
+  // When the user switches to CLAUDE mode and there's no LLM sim yet, kick a run.
+  useEffect(() => {
+    if (engine === "CLAUDE" && !llmSim && !llmRunning && !llmError) {
+      void runClaude();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine]);
+
+  const handleOpenBriefing = () => {
+    stashBriefing(sim);
+    window.open("/briefing", "_blank", "noopener,noreferrer");
+  };
+
+  const handleLoadProject = (p: {
+    competitor: typeof competitor;
+    own: typeof own;
+    scenarios: typeof scenarios;
+  }) => {
+    setCompetitor(p.competitor);
+    setOwn(p.own);
+    setScenarios(p.scenarios);
+    setSeedNonce((n) => n + 1);
+    setLlmSim(null);
+    setLlmError(null);
+  };
 
   return (
     <main className="min-h-screen bg-ink-0 text-ink-900">
       <TopBar sessionId={sessionId} />
 
-      {/* Mission strip */}
-      <section className="border-b border-ink-300/60 bg-ink-50">
+      <section className="border-b border-ink-300 bg-ink-50">
         <div className="px-6 py-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-widest text-ink-500">
-              MISSION // ADVERSARIAL SIMULATION
+              MISSION // ADVERSARIAL SIMULATION ·{" "}
+              <span className="text-ink-700">
+                {engine === "CLAUDE" ? "CLAUDE OPUS 4.7" : "LOCAL HEURISTIC"}
+              </span>
             </div>
-            <h1 className="font-display text-2xl md:text-[28px] tracking-tight text-ink-950 leading-tight mt-1">
+            <h1 className="font-display text-2xl md:text-[28px] tracking-tight text-ink-1000 leading-tight mt-1">
               Antizipiere {own.horizonRounds} Züge gegen{" "}
               <span className="text-ink-700">{competitor.name}</span>
-              <span className="text-ink-500"> //</span>{" "}
+              <span className="text-ink-400"> //</span>{" "}
               <span className="text-ink-700">{scenarios.length} Rollouts</span>
             </h1>
-            <div className="font-mono text-[11px] text-ink-600 mt-2 max-w-2xl">{own.intent}</div>
+            <div className="font-mono text-[11px] text-ink-700 mt-2 max-w-2xl">
+              {own.intent}
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2 min-w-[300px]">
             <Stat label="THREAT" value={`${idx}`} hint="0..100" />
@@ -62,31 +133,53 @@ export default function HelmPage() {
             <Stat label="ROLLOUTS" value={scenarios.length} hint="Szenarien" />
           </div>
         </div>
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button
-            onClick={() => setSeedNonce((n) => n + 1)}
-            className="font-mono text-[10px] tracking-widest border border-ink-700 px-3 py-1.5 hover:bg-ink-900 hover:text-ink-0 transition-colors"
+            onClick={() => {
+              if (engine === "CLAUDE") {
+                void runClaude();
+              } else {
+                setSeedNonce((n) => n + 1);
+              }
+            }}
+            disabled={llmRunning}
+            className="font-mono text-[10px] tracking-widest border border-ink-900 px-3 py-1.5 hover:bg-ink-900 hover:text-ink-0 transition-colors disabled:opacity-50"
           >
-            ↻ RE-ROLL TREE
+            {engine === "CLAUDE"
+              ? llmRunning
+                ? "⌛ CLAUDE REASONS …"
+                : "↻ RE-RUN CLAUDE"
+              : "↻ RE-ROLL TREE"}
+          </button>
+          <button
+            onClick={handleOpenBriefing}
+            className="font-mono text-[10px] tracking-widest border border-ink-700 px-3 py-1.5 hover:border-ink-900 hover:text-ink-1000 transition-colors"
+          >
+            ⎙ EXPORT BRIEFING (PDF)
           </button>
           <button
             onClick={() => {
-              const data = JSON.stringify(sim, null, 2);
-              navigator.clipboard?.writeText(data);
+              navigator.clipboard?.writeText(JSON.stringify(sim, null, 2));
             }}
-            className="font-mono text-[10px] tracking-widest border border-ink-300/60 text-ink-700 px-3 py-1.5 hover:border-ink-700 hover:text-ink-900 transition-colors"
+            className="font-mono text-[10px] tracking-widest border border-ink-400 text-ink-700 px-3 py-1.5 hover:border-ink-900 hover:text-ink-1000 transition-colors"
           >
             ⇣ COPY SIMULATION JSON
           </button>
           <span className="font-mono text-[10px] tracking-widest text-ink-500 ml-auto">
-            SEED // {seedNonce.toString(16).padStart(4, "0").toUpperCase()}
+            ENGINE // {engine} · SEED // {seedNonce.toString(16).padStart(4, "0").toUpperCase()}
           </span>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr_360px] gap-px bg-ink-300/40">
+      <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr_380px] gap-px bg-ink-300/60">
         {/* LEFT: inputs */}
         <aside className="bg-ink-0 p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto xl:sticky xl:top-12">
+          <EngineToggle
+            mode={engine}
+            onChange={setEngine}
+            isRunning={llmRunning}
+            lastError={llmError}
+          />
           <OwnPanel own={own} onChange={setOwn} />
           <CompetitorPanel competitor={competitor} onChange={setCompetitor} />
           <ScenarioPanel scenarios={scenarios} onChange={setScenarios} />
@@ -94,21 +187,52 @@ export default function HelmPage() {
 
         {/* CENTER: tree */}
         <section className="bg-ink-0 p-4 space-y-4">
-          <Card title="MOVE TREE // ROLLOUT" meta={`${Object.keys(sim.nodes).length} NODES · ${sim.rootIds.length} ROOTS`}>
-            <MoveTree sim={sim} selectedId={selectedId} onSelect={setSelectedId} />
+          {llmRunning && engine === "CLAUDE" && (
+            <div className="border border-ink-900 bg-ink-100 p-3 font-mono text-[11px] tracking-wider text-ink-1000">
+              <span className="inline-block w-1.5 h-1.5 bg-ink-1000 pulse-soft mr-2 align-middle" />
+              CLAUDE OPUS 4.7 REASONS · ADAPTIVE THINKING · STRUCTURED JSON · ~20–60s
+            </div>
+          )}
+          {llmError && engine === "CLAUDE" && (
+            <div className="border border-ink-900 bg-ink-100 p-3 font-mono text-[11px] tracking-wider text-ink-1000">
+              CLAUDE FEHLER: {llmError} · Fallback auf lokale Heuristik unten.
+            </div>
+          )}
+          <Card
+            title="MOVE TREE // ROLLOUT"
+            meta={`${Object.keys(sim.nodes).length} NODES · ${sim.rootIds.length} ROOTS`}
+          >
+            <MoveTree
+              sim={sim}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
             <Legend />
           </Card>
           <PathPanel sim={sim} onSelect={setSelectedId} />
+          <SensitivityPanel
+            competitor={competitor}
+            own={own}
+            scenarios={scenarios}
+          />
         </section>
 
-        {/* RIGHT: analysis */}
+        {/* RIGHT: analysis + history */}
         <aside className="bg-ink-0 p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto xl:sticky xl:top-12">
           <ThreatPanel sim={sim} />
           <NodeDetail sim={sim} nodeId={selectedId} />
+          <ProjectPanel
+            competitor={competitor}
+            own={own}
+            scenarios={scenarios}
+            sim={sim}
+            backend={engine}
+            onLoad={handleLoadProject}
+          />
         </aside>
       </div>
 
-      <footer className="border-t border-ink-300/60 bg-ink-50 px-6 py-3 flex items-center justify-between text-[10px] font-mono tracking-widest text-ink-500">
+      <footer className="border-t border-ink-300 bg-ink-50 px-6 py-3 flex items-center justify-between text-[10px] font-mono tracking-widest text-ink-500">
         <span>HELM // ADVERSARIAL STRATEGY SIMULATION ENGINE</span>
         <span>OBSERVE · ORIENT · DECIDE · ACT</span>
         <span>© 2026 // ALL ROLLOUTS ARE HYPOTHETICAL</span>
@@ -119,13 +243,13 @@ export default function HelmPage() {
 
 function Legend() {
   return (
-    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono tracking-wider text-ink-600">
+    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono tracking-wider text-ink-700">
       <div className="flex items-center gap-2">
         <span className="inline-block w-2 h-2 bg-ink-900" />
         ⌖ OPPONENT MOVE
       </div>
       <div className="flex items-center gap-2">
-        <span className="inline-block w-2 h-2 border border-ink-700" />
+        <span className="inline-block w-2 h-2 border border-ink-900" />
         ◇ OUR RESPONSE
       </div>
       <div className="flex items-center gap-2">
