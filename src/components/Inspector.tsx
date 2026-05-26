@@ -1,8 +1,9 @@
 "use client";
 
-import type { Simulation } from "@/lib/types";
+import type { Simulation, Trigger } from "@/lib/types";
 import { BarMeter, Card, Label, Stat } from "./Chrome";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
+import { fireTrigger, ackTrigger, dismissTrigger, resetTrigger } from "@/lib/triggers";
 
 export function ThreatPanel({ sim }: { sim: Simulation }) {
   const heatmap = categoryHeatmap(sim);
@@ -85,9 +86,13 @@ export function PathPanel({
 export function NodeDetail({
   sim,
   nodeId,
+  triggers = [],
+  onTriggerChange,
 }: {
   sim: Simulation;
   nodeId: string | null;
+  triggers?: Trigger[];
+  onTriggerChange?: () => void;
 }) {
   const node = nodeId ? sim.nodes[nodeId] : null;
 
@@ -150,6 +155,110 @@ export function NodeDetail({
                 </span>
               </li>
             </ol>
+          </div>
+        )}
+
+        {node.actor === "OPPONENT" && (node.indicators?.length ?? 0) > 0 && (
+          <div>
+            <Label>Leading Indicators</Label>
+            <ul className="space-y-1.5">
+              {(node.indicators ?? []).map((ind) => {
+                const trg = triggers.find(
+                  (t) => t.indicatorId === ind.id && t.simulationId === sim.id,
+                );
+                const state = trg?.state ?? "ARMED";
+                return (
+                  <li
+                    key={ind.id}
+                    className="border border-ink-300/60 bg-ink-100/40 px-2.5 py-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className="font-mono text-[9px] tracking-widest text-ink-500">
+                        {ind.source} · W={(ind.weight * 100).toFixed(0)}
+                      </span>
+                      <span
+                        className={`font-mono text-[9px] tracking-widest px-1.5 py-0.5 border border-ink-300/60 ${
+                          state === "FIRED"
+                            ? "bg-ink-900 text-ink-0"
+                            : state === "ACK"
+                              ? "bg-ink-700 text-ink-0"
+                              : state === "DISMISSED"
+                                ? "bg-ink-100 text-ink-500"
+                                : "bg-ink-200 text-ink-800"
+                        }`}
+                      >
+                        {state}
+                      </span>
+                    </div>
+                    <div className="text-[12px] text-ink-950 leading-tight">
+                      {ind.label}
+                    </div>
+                    <div className="font-mono text-[10px] text-ink-500 leading-relaxed mt-0.5">
+                      {ind.description}
+                    </div>
+                    {trg && onTriggerChange && (
+                      <div className="mt-1.5 flex gap-1">
+                        {state === "ARMED" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                fireTrigger(trg.id, {});
+                                onTriggerChange();
+                              }}
+                              className="font-mono text-[9.5px] tracking-widest px-2 py-0.5 border border-ink-900 hover:bg-ink-900 hover:text-ink-0 transition-colors"
+                            >
+                              FIRE
+                            </button>
+                            <button
+                              onClick={() => {
+                                dismissTrigger(trg.id);
+                                onTriggerChange();
+                              }}
+                              className="font-mono text-[9.5px] tracking-widest px-2 py-0.5 border border-ink-400 text-ink-600 hover:border-ink-700 hover:text-ink-900 transition-colors"
+                            >
+                              DISMISS
+                            </button>
+                          </>
+                        )}
+                        {state === "FIRED" && (
+                          <>
+                            <button
+                              onClick={() => {
+                                ackTrigger(trg.id);
+                                onTriggerChange();
+                              }}
+                              className="font-mono text-[9.5px] tracking-widest px-2 py-0.5 border border-ink-900 hover:bg-ink-900 hover:text-ink-0 transition-colors"
+                            >
+                              ACK
+                            </button>
+                            <button
+                              onClick={() => {
+                                resetTrigger(trg.id);
+                                onTriggerChange();
+                              }}
+                              className="font-mono text-[9.5px] tracking-widest px-2 py-0.5 border border-ink-400 text-ink-600 hover:border-ink-700 hover:text-ink-900 transition-colors"
+                            >
+                              RESET
+                            </button>
+                          </>
+                        )}
+                        {(state === "ACK" || state === "DISMISSED") && (
+                          <button
+                            onClick={() => {
+                              resetTrigger(trg.id);
+                              onTriggerChange();
+                            }}
+                            className="font-mono text-[9.5px] tracking-widest px-2 py-0.5 border border-ink-400 text-ink-600 hover:border-ink-700 hover:text-ink-900 transition-colors"
+                          >
+                            RESET
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
 

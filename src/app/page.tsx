@@ -19,7 +19,13 @@ import {
 import { EngineToggle, type EngineMode } from "@/components/EngineToggle";
 import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { ProjectPanel } from "@/components/ProjectPanel";
-import type { Simulation } from "@/lib/types";
+import { WatchlistPanel } from "@/components/WatchlistPanel";
+import { TrajectoryTracker } from "@/components/TrajectoryTracker";
+import {
+  armTriggersForSimulation,
+  listTriggersForSimulation,
+} from "@/lib/triggers";
+import type { Simulation, Trigger } from "@/lib/types";
 
 export default function HelmPage() {
   const [competitor, setCompetitor] = useState(DEFAULT_COMPETITOR);
@@ -32,6 +38,8 @@ export default function HelmPage() {
   const [llmSim, setLlmSim] = useState<Simulation | null>(null);
   const [llmRunning, setLlmRunning] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
+  const [triggers, setTriggers] = useState<Trigger[]>([]);
+  const [opsTab, setOpsTab] = useState<"WATCH" | "TRAJECTORY">("WATCH");
 
   useEffect(() => {
     const id =
@@ -52,6 +60,17 @@ export default function HelmPage() {
 
   const sim = engine === "CLAUDE" && llmSim ? llmSim : heuristicSim;
   const idx = threatIndex(sim);
+
+  // Arm triggers whenever the active simulation changes, then mirror them
+  // into local state so child panels can react.
+  useEffect(() => {
+    armTriggersForSimulation(sim);
+    setTriggers(listTriggersForSimulation(sim.id));
+  }, [sim]);
+
+  const refreshTriggers = () => {
+    setTriggers(listTriggersForSimulation(sim.id));
+  };
 
   const runClaude = async () => {
     setLlmRunning(true);
@@ -215,12 +234,58 @@ export default function HelmPage() {
             own={own}
             scenarios={scenarios}
           />
+
+          {/* Strategic Operations Center — Phase 1 */}
+          <div className="flex items-center gap-2 px-1">
+            <span className="font-mono text-[10px] tracking-widest text-ink-500">
+              STRATEGIC OPS //
+            </span>
+            <button
+              onClick={() => setOpsTab("WATCH")}
+              className={`font-mono text-[10px] tracking-widest px-2.5 py-1 border transition-colors ${
+                opsTab === "WATCH"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+            >
+              WATCHLIST
+            </button>
+            <button
+              onClick={() => setOpsTab("TRAJECTORY")}
+              className={`font-mono text-[10px] tracking-widest px-2.5 py-1 border transition-colors ${
+                opsTab === "TRAJECTORY"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+            >
+              TRAJECTORY
+            </button>
+          </div>
+          {opsTab === "WATCH" ? (
+            <WatchlistPanel
+              sim={sim}
+              triggers={triggers}
+              onChange={refreshTriggers}
+              onSelectNode={setSelectedId}
+            />
+          ) : (
+            <TrajectoryTracker
+              sim={sim}
+              triggers={triggers}
+              onSelectNode={setSelectedId}
+            />
+          )}
         </section>
 
         {/* RIGHT: analysis + history */}
         <aside className="bg-ink-0 p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto xl:sticky xl:top-12">
           <ThreatPanel sim={sim} />
-          <NodeDetail sim={sim} nodeId={selectedId} />
+          <NodeDetail
+            sim={sim}
+            nodeId={selectedId}
+            triggers={triggers}
+            onTriggerChange={refreshTriggers}
+          />
           <ProjectPanel
             competitor={competitor}
             own={own}
