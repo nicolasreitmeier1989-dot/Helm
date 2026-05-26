@@ -589,6 +589,21 @@ function ChoiceMenu({
   const pickedCount = pickedIds.size;
   const canCommit = pickedCount > 0;
 
+  // Capital pressure: <25% remaining = red, <50% = amber, else white.
+  const remainPct = round.capitalBudget > 0
+    ? capitalRemaining / round.capitalBudget
+    : 0;
+  const capitalAccent =
+    capitalRemaining < 0
+      ? "#ef4444"
+      : remainPct < 0.25
+      ? "#dc2626"
+      : remainPct < 0.5
+      ? "#f59e0b"
+      : "#ffffff";
+  const capitalLabel =
+    remainPct < 0.25 ? "CAPITAL THIN" : remainPct < 0.5 ? "CAPITAL TIGHT" : "CAPITAL";
+
   return (
     <div className="relative z-20 bg-black/95 backdrop-blur border-t-2 border-white/20 px-3 md:px-6 pt-3 md:pt-4 pb-4 md:pb-5">
       <div className="flex items-center justify-between gap-3 mb-3 max-w-7xl mx-auto">
@@ -597,8 +612,8 @@ function ChoiceMenu({
         </div>
         <div className="flex items-center gap-3 md:gap-5 font-mono text-[10px] tracking-[0.25em]">
           <span className="text-white/40">
-            CAPITAL{" "}
-            <span className={capitalRemaining < 0 ? "text-red-500" : "text-white"}>
+            {capitalLabel}{" "}
+            <span style={{ color: capitalAccent }} className="font-bold">
               {capitalRemaining}
             </span>
             <span className="text-white/30"> / {round.capitalBudget}</span>
@@ -609,11 +624,15 @@ function ChoiceMenu({
         </div>
       </div>
 
-      {/* Capital bar */}
+      {/* Capital bar — colored by pressure */}
       <div className="relative h-1 bg-white/10 mb-3 md:mb-4 max-w-7xl mx-auto overflow-hidden">
         <div
-          className="absolute inset-y-0 left-0 bg-white/70 transition-all duration-300"
-          style={{ width: `${Math.min(100, (capitalSpent / round.capitalBudget) * 100)}%` }}
+          className="absolute inset-y-0 left-0 transition-all duration-300"
+          style={{
+            width: `${Math.min(100, (capitalSpent / round.capitalBudget) * 100)}%`,
+            backgroundColor: capitalAccent,
+            boxShadow: capitalAccent !== "#ffffff" ? `0 0 12px ${capitalAccent}90` : undefined,
+          }}
         />
       </div>
 
