@@ -29,6 +29,7 @@ import { getActiveProject, type WFCContext } from "@/lib/store";
 import { EngineToggle, type EngineMode } from "@/components/EngineToggle";
 import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { ProjectPanel } from "@/components/ProjectPanel";
+import { CalibrationPanel } from "@/components/CalibrationPanel";
 import { WatchlistPanel } from "@/components/WatchlistPanel";
 import { TrajectoryTracker } from "@/components/TrajectoryTracker";
 import { TopologyEditor } from "@/components/TopologyEditor";
@@ -62,6 +63,7 @@ export default function DashboardPage() {
   const [opsTab, setOpsTab] = useState<"WATCH" | "TRAJECTORY">("WATCH");
   const [topologySide, setTopologySide] = useState<"OWN" | "OPPONENT">("OWN");
   const [wfc, setWfc] = useState<WFCContext | undefined>(undefined);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     const id =
@@ -79,6 +81,7 @@ export default function DashboardPage() {
         setScenarios(active.scenarios);
       }
       setWfc(active.wfc);
+      setActiveProjectId(active.id);
     }
   }, []);
 
@@ -381,6 +384,7 @@ export default function DashboardPage() {
             backend={engine}
             onLoad={handleLoadProject}
           />
+          <CalibrationPanel sim={sim} activeProjectId={activeProjectId} />
         </aside>
       </div>
 
