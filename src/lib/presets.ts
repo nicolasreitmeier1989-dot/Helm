@@ -1,8 +1,10 @@
 // HELM — default seeded topologies, profiles, and scenarios.
 //
-// Designed so the app shows real content out of the box: shared customer
-// segment between HELM CORP and MERIDIAN INDUSTRIES drives the BMC-overlap +
-// VPC-fit visualizations from the first render.
+// v0.3F: capabilities are organised into CapabilitySets. Each set carries
+// dimension + lifecycle + era + source, opening up the model so that new
+// capability sets emerge over time (by user, standard library, or signal
+// from world events). Set names that collide across both sides are the
+// engine's signal for an EMERGING-CAPABILITY race.
 
 import type {
   CompetitorProfile,
@@ -20,21 +22,86 @@ const SHARED_SEGMENT_ID = "cs-shared-fin-mid";
 // ---------- HELM CORP (us) — vertical-stack DACH compliance SaaS ----------
 
 const HELM_TOPOLOGY: StrategicTopology = {
+  capabilitySets: [
+    {
+      id: "cs-regulatory-tradecraft-helm",
+      name: "Regulatory Tradecraft",
+      dimension: "PEOPLE",
+      era: 2012,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "BaFin/EBA-Tiefe als persönliche Diziplin — Regulatory-Affairs als Handwerk.",
+    },
+    {
+      id: "cs-vertical-sales-dach-helm",
+      name: "Vertical Sales Force DACH",
+      dimension: "PEOPLE",
+      era: 2015,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Branchen-spezialisierte Account-Executive-Force im deutschsprachigen Raum.",
+    },
+    {
+      id: "cs-eu-data-eng-helm",
+      name: "EU Data Engineering",
+      dimension: "TECH",
+      era: 2018,
+      lifecycle: "GROWING",
+      source: "STANDARD",
+      description:
+        "Schrems-II-konforme Datenplattform-Engineering — Residenz, Schlüsselverwaltung, Audit-Trail.",
+    },
+    {
+      id: "cs-ai-native-ops-helm",
+      name: "AI-Native Operations",
+      dimension: "TECH",
+      era: 2024,
+      lifecycle: "EMERGING",
+      source: "STANDARD",
+      description:
+        "Aufbau einer KI-nativen Betriebs-Schicht (Agents, Inference, Eval) — Battleground.",
+    },
+    {
+      id: "cs-vertical-org-helm",
+      name: "Vertical Org Model",
+      dimension: "ORG",
+      era: 2015,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Founder-led, branchenvertikal organisierte Squads (Sales × Eng × Reg).",
+    },
+    {
+      id: "cs-audit-release-eng-helm",
+      name: "Audit-Grade Release Engineering",
+      dimension: "PROCESSES",
+      era: 2014,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "SOC2 + ISO 27001 + BaFin-Attest-fähige Release-Pipelines mit Reg-Change-Sprints.",
+    },
+  ],
   capabilities: [
-    // PEOPLE
-    { id: "hc-p1", dimension: "PEOPLE", label: "EU-Compliance-Engineering-Team", level: 78, importance: 85 },
-    { id: "hc-p2", dimension: "PEOPLE", label: "DACH Enterprise Account Executives", level: 65, importance: 75 },
-    { id: "hc-p3", dimension: "PEOPLE", label: "Regulatory-Affairs Officer (BaFin/EBA)", level: 70, importance: 80 },
-    // TECH
-    { id: "hc-t1", dimension: "TECH", label: "EU-Datenresidenz-Stack (Frankfurt+Zürich)", level: 82, importance: 90 },
-    { id: "hc-t2", dimension: "TECH", label: "Workflow-Engine mit Audit-Trail", level: 68, importance: 70 },
-    { id: "hc-t3", dimension: "TECH", label: "KI-Inferenz auf privater Infra", level: 55, importance: 75 },
-    // ORG
-    { id: "hc-o1", dimension: "ORG", label: "Flache, founder-led Org", level: 72, importance: 60 },
-    { id: "hc-o2", dimension: "ORG", label: "Verzahnte Sales/Engineering-Squads", level: 64, importance: 65 },
-    // PROCESSES
-    { id: "hc-pr1", dimension: "PROCESSES", label: "SOC2 Type-II + ISO 27001 Audits", level: 80, importance: 85 },
-    { id: "hc-pr2", dimension: "PROCESSES", label: "Quartalsweise Reg-Change-Sprints", level: 70, importance: 70 },
+    // Regulatory Tradecraft (PEOPLE)
+    { id: "hc-p1", setId: "cs-regulatory-tradecraft-helm", label: "EU-Compliance-Engineering-Team", level: 78, importance: 85 },
+    { id: "hc-p3", setId: "cs-regulatory-tradecraft-helm", label: "Regulatory-Affairs Officer (BaFin/EBA)", level: 70, importance: 80 },
+    // Vertical Sales Force DACH (PEOPLE)
+    { id: "hc-p2", setId: "cs-vertical-sales-dach-helm", label: "DACH Enterprise Account Executives", level: 65, importance: 75 },
+    // EU Data Engineering (TECH)
+    { id: "hc-t1", setId: "cs-eu-data-eng-helm", label: "EU-Datenresidenz-Stack (Frankfurt+Zürich)", level: 82, importance: 90 },
+    { id: "hc-t2", setId: "cs-eu-data-eng-helm", label: "Workflow-Engine mit Audit-Trail", level: 68, importance: 70 },
+    // AI-Native Operations (TECH) — EMERGING battleground
+    { id: "hc-t3", setId: "cs-ai-native-ops-helm", label: "KI-Inferenz auf privater Infra", level: 55, importance: 75 },
+    { id: "hc-t4", setId: "cs-ai-native-ops-helm", label: "Agent-Operations-Layer (intern, Pilot)", level: 35, importance: 80 },
+    // Vertical Org Model (ORG)
+    { id: "hc-o1", setId: "cs-vertical-org-helm", label: "Flache, founder-led Org", level: 72, importance: 60 },
+    { id: "hc-o2", setId: "cs-vertical-org-helm", label: "Verzahnte Sales/Engineering-Squads", level: 64, importance: 65 },
+    // Audit-Grade Release Engineering (PROCESSES)
+    { id: "hc-pr1", setId: "cs-audit-release-eng-helm", label: "SOC2 Type-II + ISO 27001 Audits", level: 80, importance: 85 },
+    { id: "hc-pr2", setId: "cs-audit-release-eng-helm", label: "Quartalsweise Reg-Change-Sprints", level: 70, importance: 70 },
   ],
   bmc: {
     blocks: [
@@ -156,21 +223,87 @@ const HELM_TOPOLOGY: StrategicTopology = {
 // ---------- MERIDIAN INDUSTRIES (them) — well-funded enterprise compliance incumbent ----------
 
 const MERIDIAN_TOPOLOGY: StrategicTopology = {
+  capabilitySets: [
+    {
+      id: "cs-enterprise-gtm-meridian",
+      name: "Enterprise GTM",
+      dimension: "PEOPLE",
+      era: 2008,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Tier-1-Banking-AE-Bench mit jahrzehntelanger Enterprise-Sales-Maschine.",
+    },
+    {
+      id: "cs-mna-integration-meridian",
+      name: "M&A Integration",
+      dimension: "PEOPLE",
+      era: 2012,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Corp-Dev + Integration-Org als wiederholbares Playbook.",
+    },
+    {
+      id: "cs-hyperscaler-native-meridian",
+      name: "Hyperscaler Native",
+      dimension: "TECH",
+      era: 2018,
+      lifecycle: "GROWING",
+      source: "STANDARD",
+      description:
+        "Tief integriert in AWS + Azure — Marketplace, Co-Sell, Multi-Region.",
+    },
+    {
+      id: "cs-ai-native-ops-meridian",
+      name: "AI-Native Operations",
+      dimension: "TECH",
+      era: 2024,
+      lifecycle: "EMERGING",
+      source: "STANDARD",
+      description:
+        "Eigene Workflow-KI-Modelle + Agent-Layer im Aufbau — kollidiert direkt mit HELM-Battleground.",
+    },
+    {
+      id: "cs-matrix-geo-meridian",
+      name: "Matrix Geography",
+      dimension: "ORG",
+      era: 2005,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Globale Matrix-Org mit regionalen P&Ls und globalen Funktionen.",
+    },
+    {
+      id: "cs-lobbying-meridian",
+      name: "Lobbying-as-Discipline",
+      dimension: "PROCESSES",
+      era: 2010,
+      lifecycle: "MATURE",
+      source: "STANDARD",
+      description:
+        "Industrieller Lobby-Apparat in Washington + Brüssel.",
+    },
+  ],
   capabilities: [
-    // PEOPLE
-    { id: "me-p1", dimension: "PEOPLE", label: "Global Tier-1-Banking-AE-Bench", level: 88, importance: 85 },
-    { id: "me-p2", dimension: "PEOPLE", label: "AI/ML Research Org (London/SF)", level: 80, importance: 75 },
-    { id: "me-p3", dimension: "PEOPLE", label: "EU-Compliance-Specialists", level: 55, importance: 80 },
-    // TECH
-    { id: "me-t1", dimension: "TECH", label: "Workflow-KI-Plattform (proprietär)", level: 85, importance: 85 },
-    { id: "me-t2", dimension: "TECH", label: "Multi-Cloud (AWS + Azure)", level: 78, importance: 70 },
-    { id: "me-t3", dimension: "TECH", label: "EU-Datenresidenz-Optionalität", level: 50, importance: 80 },
-    // ORG
-    { id: "me-o1", dimension: "ORG", label: "M&A-Maschine mit Corp-Dev-Team", level: 82, importance: 75 },
-    { id: "me-o2", dimension: "ORG", label: "Globale Matrix-Org", level: 70, importance: 60 },
-    // PROCESSES
-    { id: "me-pr1", dimension: "PROCESSES", label: "Enterprise-Procurement-Playbook", level: 85, importance: 75 },
-    { id: "me-pr2", dimension: "PROCESSES", label: "EU-Reg-Change-Pipeline", level: 50, importance: 80 },
+    // Enterprise GTM (PEOPLE)
+    { id: "me-p1", setId: "cs-enterprise-gtm-meridian", label: "Global Tier-1-Banking-AE-Bench", level: 88, importance: 85 },
+    { id: "me-p3", setId: "cs-enterprise-gtm-meridian", label: "EU-Compliance-Specialists", level: 55, importance: 80 },
+    // M&A Integration (PEOPLE)
+    { id: "me-p4", setId: "cs-mna-integration-meridian", label: "Corp-Dev / M&A-Integration-Team", level: 82, importance: 80 },
+    // Hyperscaler Native (TECH)
+    { id: "me-t2", setId: "cs-hyperscaler-native-meridian", label: "Multi-Cloud (AWS + Azure)", level: 78, importance: 70 },
+    { id: "me-t3", setId: "cs-hyperscaler-native-meridian", label: "EU-Datenresidenz-Optionalität", level: 50, importance: 80 },
+    // AI-Native Operations (TECH) — EMERGING, same name as HELM's set
+    { id: "me-t1", setId: "cs-ai-native-ops-meridian", label: "Workflow-KI-Plattform (proprietär)", level: 85, importance: 85 },
+    { id: "me-p2", setId: "cs-ai-native-ops-meridian", label: "AI/ML Research Org (London/SF)", level: 80, importance: 75 },
+    // Matrix Geography (ORG)
+    { id: "me-o1", setId: "cs-matrix-geo-meridian", label: "M&A-Maschine mit Corp-Dev-Team", level: 82, importance: 75 },
+    { id: "me-o2", setId: "cs-matrix-geo-meridian", label: "Globale Matrix-Org", level: 70, importance: 60 },
+    // Lobbying-as-Discipline (PROCESSES)
+    { id: "me-pr1", setId: "cs-lobbying-meridian", label: "Enterprise-Procurement-Playbook", level: 85, importance: 75 },
+    { id: "me-pr2", setId: "cs-lobbying-meridian", label: "EU-Reg-Change-Pipeline", level: 50, importance: 80 },
+    { id: "me-pr3", setId: "cs-lobbying-meridian", label: "Brüssel + Washington Lobby-Apparat", level: 78, importance: 70 },
   ],
   bmc: {
     blocks: [

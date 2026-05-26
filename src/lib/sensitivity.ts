@@ -3,16 +3,16 @@
 // trigger 20+ API calls. The heuristic shares the same scoring inputs so
 // directional reads transfer.
 //
-// v0.3: expanded to sweep over topology variables as well. The new dimensions
-// are:
-//   - one capability LEVEL ±20 across our top-3 capabilities by importance
-//   - one of opponent's key BMC block strengths ±20 (top-3 by current
-//     strength × kind-weight)
+// v0.3: expanded to sweep over topology variables as well.
+// v0.3F: adds capability-set LIFECYCLE sweep on our top set (by aggregate
+// importance per dimension).
 
 import { simulate, threatIndex } from "./engine";
 import type {
   BMCBlock,
   Capability,
+  CapabilityDimension,
+  CapabilitySetLifecycle,
   CompetitorProfile,
   OwnProfile,
   Posture,
@@ -45,6 +45,7 @@ function clampNum(n: number, lo = 0, hi = 100): number {
 
 function cloneTopology(t: StrategicTopology): StrategicTopology {
   return {
+    capabilitySets: t.capabilitySets.map((s) => ({ ...s })),
     capabilities: t.capabilities.map((c) => ({ ...c })),
     bmc: { blocks: t.bmc.blocks.map((b) => ({ ...b })) },
     vpcs: t.vpcs.map((v) => ({
@@ -188,6 +189,68 @@ export function sensitivitySweep(
       delta: vDn - baseline,
       variant: vDn,
     });
+  }
+
+  // ---- Topology v0.3F: vary the lifecycle of OUR top capability set by ±1
+  // step. Pick the set whose dimension has the highest aggregate importance
+  // across its member capabilities. ----
+  const dims: CapabilityDimension[] = ["PEOPLE", "TECH", "ORG", "PROCESSES"];
+  const aggImpByDim: Record<CapabilityDimension, number> = {
+    PEOPLE: 0,
+    TECH: 0,
+    ORG: 0,
+    PROCESSES: 0,
+  };
+  for (const cap of own.topology.capabilities) {
+    const set = own.topology.capabilitySets.find((s) => s.id === cap.setId);
+    if (!set) continue;
+    aggImpByDim[set.dimension] += cap.importance;
+  }
+  const topDim = dims.reduce((a, b) =>
+    aggImpByDim[a] >= aggImpByDim[b] ? a : b,
+  );
+  // pick the highest-importance set inside that dimension
+  const candidateSets = own.topology.capabilitySets.filter(
+    (s) => s.dimension === topDim,
+  );
+  let topSet = candidateSets[0];
+  for (const s of candidateSets) {
+    const sImp = own.topology.capabilities
+      .filter((c) => c.setId === s.id)
+      .reduce((acc, c) => acc + c.importance, 0);
+    const tImp = own.topology.capabilities
+      .filter((c) => c.setId === topSet.id)
+      .reduce((acc, c) => acc + c.importance, 0);
+    if (sImp > tImp) topSet = s;
+  }
+  if (topSet) {
+    const ladder: CapabilitySetLifecycle[] = [
+      "EMERGING",
+      "GROWING",
+      "MATURE",
+      "DECLINING",
+      "OBSOLETE",
+    ];
+    const idx = ladder.indexOf(topSet.lifecycle);
+    const variants: { label: string; lifecycle: CapabilitySetLifecycle }[] = [];
+    if (idx > 0) variants.push({ label: `−1 → ${ladder[idx - 1]}`, lifecycle: ladder[idx - 1] });
+    if (idx < ladder.length - 1)
+      variants.push({ label: `+1 → ${ladder[idx + 1]}`, lifecycle: ladder[idx + 1] });
+    for (const v of variants) {
+      const nextTop = cloneTopology(own.topology);
+      const idxSet = nextTop.capabilitySets.findIndex((s) => s.id === topSet.id);
+      if (idxSet < 0) continue;
+      nextTop.capabilitySets[idxSet] = {
+        ...nextTop.capabilitySets[idxSet],
+        lifecycle: v.lifecycle,
+      };
+      const variantThreat = variantWithTopology("OWN", nextTop);
+      rows.push({
+        label: `Set «${shortLabel(topSet.name)}» Lifecycle ${v.label}`,
+        delta: variantThreat - baseline,
+        variant: variantThreat,
+      });
+    }
   }
 
   // Sort by absolute impact, descending.

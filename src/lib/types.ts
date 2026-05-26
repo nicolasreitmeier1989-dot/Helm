@@ -31,11 +31,37 @@ export type MoveCategory =
 // ---------- Strategic Topology (NEW v0.3) ----------
 
 // Layer 1 — Capabilities (inside-out: what we can DO)
+//
+// v0.3F: capabilities live INSIDE capability sets. Sets are emergent,
+// not fixed buckets — they carry a lifecycle (EMERGING → OBSOLETE),
+// an era (year the set became strategically relevant), and a source
+// (STANDARD library, CUSTOM user-defined, or SIGNAL_DERIVED from world
+// events). A capability belongs to exactly one set via `setId`; the set
+// itself carries the dimension.
 export type CapabilityDimension = "PEOPLE" | "TECH" | "ORG" | "PROCESSES";
+
+export type CapabilitySetLifecycle =
+  | "EMERGING"
+  | "GROWING"
+  | "MATURE"
+  | "DECLINING"
+  | "OBSOLETE";
+
+export type CapabilitySetSource = "STANDARD" | "CUSTOM" | "SIGNAL_DERIVED";
+
+export interface CapabilitySet {
+  id: string;
+  name: string;                      // "AI-Native Operations", "Regulatory Tradecraft"
+  dimension: CapabilityDimension;
+  era: number;                       // year the set became strategically relevant
+  lifecycle: CapabilitySetLifecycle;
+  source: CapabilitySetSource;
+  description?: string;
+}
 
 export interface Capability {
   id: string;
-  dimension: CapabilityDimension;
+  setId: string;                     // FK to a CapabilitySet
   label: string;
   level: number;       // 0..100 — current strength
   importance: number;  // 0..100 — how strategic this capability is
@@ -90,7 +116,8 @@ export interface ValuePropositionCanvas {
 }
 
 export interface StrategicTopology {
-  capabilities: Capability[];
+  capabilitySets: CapabilitySet[];   // open list of sets (emergent, evolving)
+  capabilities: Capability[];        // each belongs to a set via setId
   bmc: BusinessModelCanvas;
   vpcs: ValuePropositionCanvas[];
 }
@@ -131,6 +158,12 @@ export type DeltaTarget =
       kind: "CAPABILITY";
       dimension: CapabilityDimension;
       capabilityId?: string;
+      setId?: string;                 // optional FK to the parent set (v0.3F)
+    }
+  | {
+      kind: "CAPABILITY_SET";
+      setId?: string;                 // when ADDing a new set, this is empty
+      dimension?: CapabilityDimension;
     }
   | {
       kind: "BMC_BLOCK";
@@ -191,7 +224,8 @@ export type IndicatorSource =
   | "CHANNEL"
   | "REGULATORY"
   | "CAPITAL"
-  | "SOCIAL";
+  | "SOCIAL"
+  | "EMERGENCE";
 
 export interface Indicator {
   id: string;

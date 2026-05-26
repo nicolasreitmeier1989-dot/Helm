@@ -410,7 +410,10 @@ function threatFromDeltasLLM(
       t += mag * 0.6;
     }
     if (tgt.kind === "CAPABILITY") {
-      const ourCaps = ourTop.capabilities.filter((c) => c.dimension === tgt.dimension);
+      const ourCaps = ourTop.capabilities.filter((c) => {
+        const set = ourTop.capabilitySets.find((s) => s.id === c.setId);
+        return set?.dimension === tgt.dimension;
+      });
       const avgLevel =
         ourCaps.length === 0
           ? 30
@@ -419,6 +422,10 @@ function threatFromDeltasLLM(
         ourCaps.length === 0 ? 50 : Math.max(...ourCaps.map((c) => c.importance));
       if (avgLevel < 65 && maxImp >= 65) t += mag * 0.5;
       else t += mag * 0.25;
+    }
+    if (tgt.kind === "CAPABILITY_SET") {
+      // Treat as moderate threat — LLM tree uses a simpler heuristic for the set layer.
+      t += mag * 0.35;
     }
   }
   return Math.round(Math.max(0, Math.min(100, t)));

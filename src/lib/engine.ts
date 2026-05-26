@@ -12,7 +12,6 @@
 // is 100 - parent.threat (the move's effectiveness at reducing the threat).
 
 import type {
-  BMCBlock,
   BMCBlockKind,
   Capability,
   CapabilityDimension,
@@ -27,9 +26,17 @@ import type {
   Simulation,
   StrategicTopology,
   TopologyDelta,
-  ValuePropositionCanvas,
 } from "./types";
-import { deriveCategoryFromDeltas, sharedBlocks } from "./topology";
+import {
+  deriveCategoryFromDeltas,
+  sharedBlocks,
+} from "./topology";
+
+// Helper: derive a capability's dimension via its set membership.
+function dimOfCap(cap: Capability, topology: StrategicTopology): CapabilityDimension | null {
+  const set = topology.capabilitySets.find((s) => s.id === cap.setId);
+  return set ? set.dimension : null;
+}
 
 // ---------- deterministic PRNG (mulberry32) ----------
 function hashString(s: string): number {
@@ -198,6 +205,16 @@ const INDICATOR_LIBRARY: Record<MoveCategory, IndicatorTemplate[]> = {
   ],
 };
 
+// ---------- Emerging-Capability seed library (used by opponent move generator) ----------
+
+const EMERGING_CAPABILITY_LIBRARY: { name: string; dimension: CapabilityDimension }[] = [
+  { name: "Agent Operations", dimension: "TECH" },
+  { name: "Synthetic Data Engineering", dimension: "TECH" },
+  { name: "AI Governance Office", dimension: "PROCESSES" },
+  { name: "Hybrid-Work Ops", dimension: "ORG" },
+  { name: "Sovereign-Cloud Tradecraft", dimension: "PEOPLE" },
+];
+
 export function attachIndicatorsToSimulation(sim: Simulation): void {
   const seedBase = hashString(sim.id);
   for (const id in sim.nodes) {
@@ -361,22 +378,29 @@ function opponentMoveCandidates(
   // ---- 4. CAPABILITY moves ----
   // Leverage their high-importance, high-level capabilities
   for (const cap of oppTop.capabilities) {
+    const dim = dimOfCap(cap, oppTop);
+    if (!dim) continue;
     if (cap.level >= 70 && cap.importance >= 70) {
       const mag = clamp(40 + (cap.importance - 70) * 1.5, 35, 80);
-      const cat = catFromCapability(cap.dimension, "STRENGTHEN");
+      const cat = catFromCapability(dim, "STRENGTHEN");
       let w = postureBoost(cat) * 1.2;
-      if (cap.dimension === "TECH" && opp.innovationIndex > 60) w *= 1.3;
+      if (dim === "TECH" && opp.innovationIndex > 60) w *= 1.3;
       candidates.push({
         title: `Hebel auf "${cap.label}" — Doppel-Investition`,
-        description: `Verstärkt vorhandene ${cap.dimension}-Stärke.`,
+        description: `Verstärkt vorhandene ${dim}-Stärke.`,
         cost: clamp(40 + cap.level * 0.2, 30, 70),
         weight: w,
         delta: {
           layer: "CAPABILITIES",
           op: "STRENGTHEN",
-          target: { kind: "CAPABILITY", dimension: cap.dimension, capabilityId: cap.id },
+          target: {
+            kind: "CAPABILITY",
+            dimension: dim,
+            capabilityId: cap.id,
+            setId: cap.setId,
+          },
           magnitude: mag,
-          description: `Verstärkt ${cap.dimension}-Capability "${cap.label}" (+${Math.round(
+          description: `Verstärkt ${dim}-Capability "${cap.label}" (+${Math.round(
             mag * 0.5,
           )} Level).`,
         },
@@ -386,25 +410,32 @@ function opponentMoveCandidates(
 
   // Close low-level but high-importance capability gaps (asymmetric attack on our edge)
   for (const cap of oppTop.capabilities) {
+    const dim = dimOfCap(cap, oppTop);
+    if (!dim) continue;
     if (cap.level < 65 && cap.importance >= 70) {
       const mag = clamp(50 + cap.importance * 0.3, 45, 90);
-      const cat = catFromCapability(cap.dimension, "STRENGTHEN");
+      const cat = catFromCapability(dim, "STRENGTHEN");
       let w = postureBoost(cat) * 1.35;
       // Optimizers love closing process / ORG gaps
-      if (cap.dimension === "PROCESSES" || cap.dimension === "ORG") w *= 1 + optimizer * 0.5;
+      if (dim === "PROCESSES" || dim === "ORG") w *= 1 + optimizer * 0.5;
       // Visionaries push TECH gaps
-      if (cap.dimension === "TECH") w *= 1 + visionary * 0.5;
+      if (dim === "TECH") w *= 1 + visionary * 0.5;
       candidates.push({
         title: `Aufbau "${cap.label}" um Lücke zu schließen`,
-        description: `Adressiert gefährliche ${cap.dimension}-Lücke.`,
+        description: `Adressiert gefährliche ${dim}-Lücke.`,
         cost: clamp(55 + (90 - cap.level) * 0.3, 45, 85),
         weight: w,
         delta: {
           layer: "CAPABILITIES",
           op: "STRENGTHEN",
-          target: { kind: "CAPABILITY", dimension: cap.dimension, capabilityId: cap.id },
+          target: {
+            kind: "CAPABILITY",
+            dimension: dim,
+            capabilityId: cap.id,
+            setId: cap.setId,
+          },
           magnitude: mag,
-          description: `Schließt ${cap.dimension}-Lücke "${cap.label}" (+${Math.round(
+          description: `Schließt ${dim}-Lücke "${cap.label}" (+${Math.round(
             mag * 0.5,
           )} Level).`,
         },
@@ -480,6 +511,43 @@ function opponentMoveCandidates(
         description: `Neuer Gain-Creator: AI-Augmentation für Compliance-Officer-Effizienz.`,
       },
     });
+  }
+
+  // ---- 6b. ADD a NEW CAPABILITY SET ("emerging area") ---------------------
+  // Only for AGGRESSIVE / OPPORTUNISTIC postures; low probability per round.
+  // Picks a name from EMERGING_CAPABILITY_LIBRARY that the opponent doesn't
+  // already have. The set dimension defaults to TECH (most emerging areas).
+  if (opp.posture === "AGGRESSIVE" || opp.posture === "OPPORTUNISTIC") {
+    const have = new Set(
+      oppTop.capabilitySets.map((s) => s.name.trim().toLowerCase()),
+    );
+    const fresh = EMERGING_CAPABILITY_LIBRARY.filter(
+      (e) => !have.has(e.name.trim().toLowerCase()),
+    );
+    for (const e of fresh) {
+      const mag = clamp(45 + visionary * 25 + (opp.innovationIndex / 100) * 15, 40, 85);
+      // Base weight ~0.45 — small probability per spec (~10–15%)
+      let w = 0.45 + visionary * 0.3 + (opp.innovationIndex / 100) * 0.2;
+      if (opp.posture === "AGGRESSIVE") w *= 1.05;
+      if (opp.posture === "OPPORTUNISTIC") w *= 1.15;
+      candidates.push({
+        title: `Aufbau neuer Capability-Area: "${e.name}"`,
+        description: `${opp.name} eröffnet eine neue Capability-Domäne — Signal-getrieben.`,
+        cost: clamp(60 + visionary * 15, 55, 90),
+        weight: w,
+        delta: {
+          layer: "CAPABILITIES",
+          op: "ADD",
+          target: {
+            kind: "CAPABILITY_SET",
+            dimension: e.dimension,
+          },
+          newLabel: e.name,
+          magnitude: mag,
+          description: `Neues Capability-Set "${e.name}" (EMERGING, ${e.dimension}).`,
+        },
+      });
+    }
   }
 
   // ---- 7. M&A plays — gated by war chest, derived from KEY_RESOURCES ----
@@ -561,7 +629,9 @@ function selfMoveCandidates(
 
   // 2. If they hit CAPABILITY dimension D — we STRENGTHEN our capability in D
   if (tgt.kind === "CAPABILITY") {
-    const ourCap = ourTop.capabilities.find((c) => c.dimension === tgt.dimension);
+    const ourCap = ourTop.capabilities.find(
+      (c) => dimOfCap(c, ourTop) === tgt.dimension,
+    );
     if (ourCap) {
       candidates.push({
         title: `Doppel-Down auf ${tgt.dimension}-Capability`,
@@ -571,9 +641,39 @@ function selfMoveCandidates(
         delta: {
           layer: "CAPABILITIES",
           op: "STRENGTHEN",
-          target: { kind: "CAPABILITY", dimension: tgt.dimension, capabilityId: ourCap.id },
+          target: {
+            kind: "CAPABILITY",
+            dimension: tgt.dimension,
+            capabilityId: ourCap.id,
+            setId: ourCap.setId,
+          },
           magnitude: 60,
           description: `Verstärkt unsere ${tgt.dimension}-Capability "${ourCap.label}".`,
+        },
+      });
+    }
+  }
+
+  // 2b. If they ADD a CAPABILITY_SET — we respond by either ADDing an
+  // equivalent set or strengthening our adjacent set.
+  if (tgt.kind === "CAPABILITY_SET" && tgt.dimension) {
+    const adjacent = ourTop.capabilitySets.find((s) => s.dimension === tgt.dimension);
+    if (adjacent) {
+      candidates.push({
+        title: `Verteidigung "${adjacent.name}" gegen neue Capability-Area`,
+        description: `Asymmetrische Verteidigung gegen neue ${tgt.dimension}-Domäne.`,
+        cost: 50,
+        weight: 1.2,
+        delta: {
+          layer: "CAPABILITIES",
+          op: "STRENGTHEN",
+          target: {
+            kind: "CAPABILITY_SET",
+            setId: adjacent.id,
+            dimension: adjacent.dimension,
+          },
+          magnitude: 60,
+          description: `Verstärkt unsere "${adjacent.name}"-Sphäre als Antwort.`,
         },
       });
     }
@@ -642,9 +742,20 @@ function selfMoveCandidates(
  *   - delta on a BMC block kind WE also have:                            mag * 0.4
  *   - delta on a VPC item where the parent segment is shared with us:    mag * 0.6
  *   - delta on a capability dimension where our level is LOW + importance HIGH: mag * 0.5
- * Sum, clamp to 0..100.
+ *
+ * Plus v0.3F additions for the capability-set layer:
+ *   - opponent ADDs a CapabilitySet whose name we DO NOT have AND its
+ *     dimension is one where our top capability importance ≥ 70:        mag * 0.7
+ *   - both sides hold a same-name set BOTH at EMERGING lifecycle AND
+ *     opponent STRENGTHENs theirs:                                       mag * 0.5
+ *   - opponent STRENGTHENs a same-name set where ours is DECLINING/
+ *     OBSOLETE (quiet-investment threat):                                mag * 0.2
  */
-function threatFromDeltas(deltas: TopologyDelta[], own: OwnProfile): number {
+function threatFromDeltas(
+  deltas: TopologyDelta[],
+  own: OwnProfile,
+  opponentTop?: StrategicTopology,
+): number {
   const ourTop = own.topology;
   let t = 0;
   for (const d of deltas) {
@@ -658,14 +769,14 @@ function threatFromDeltas(deltas: TopologyDelta[], own: OwnProfile): number {
 
     if (tgt.kind === "VPC_ITEM") {
       // VPC items: hot if we share that customer segment.
-      // We use the VPC's parent segment block id (if present) or, failing that,
-      // assume overlap is implied (since the opponent picked it via collision).
       t += mag * 0.6;
     }
 
     if (tgt.kind === "CAPABILITY") {
       // Asymmetric attack on our weak spot?
-      const ourCaps = ourTop.capabilities.filter((c) => c.dimension === tgt.dimension);
+      const ourCaps = ourTop.capabilities.filter(
+        (c) => dimOfCap(c, ourTop) === tgt.dimension,
+      );
       const avgLevel =
         ourCaps.length === 0
           ? 30
@@ -675,7 +786,60 @@ function threatFromDeltas(deltas: TopologyDelta[], own: OwnProfile): number {
           ? 50
           : Math.max(...ourCaps.map((c) => c.importance));
       if (avgLevel < 65 && maxImp >= 65) t += mag * 0.5;
-      else t += mag * 0.25; // still some threat if they're investing here
+      else t += mag * 0.25;
+    }
+
+    if (tgt.kind === "CAPABILITY_SET") {
+      // We need to look up the opponent's set name from the move's newLabel
+      // (for ADD) or from opponentTop via setId (for STRENGTHEN).
+      const oppSet = tgt.setId
+        ? opponentTop?.capabilitySets.find((s) => s.id === tgt.setId)
+        : undefined;
+      const name = d.newLabel ?? oppSet?.name ?? "";
+      const dim = tgt.dimension ?? oppSet?.dimension;
+      const sameName = name
+        ? ourTop.capabilitySets.find(
+            (s) => s.name.trim().toLowerCase() === name.trim().toLowerCase(),
+          )
+        : undefined;
+
+      if (d.op === "ADD") {
+        if (!sameName && dim) {
+          // Asymmetric: new domain we don't hold
+          const ourDimCaps = ourTop.capabilities.filter(
+            (c) => dimOfCap(c, ourTop) === dim,
+          );
+          const topImp =
+            ourDimCaps.length === 0
+              ? 0
+              : Math.max(...ourDimCaps.map((c) => c.importance));
+          if (topImp >= 70) {
+            t += mag * 0.7;
+          } else {
+            t += mag * 0.35;
+          }
+        } else {
+          t += mag * 0.3;
+        }
+      } else if (d.op === "STRENGTHEN") {
+        // Race condition? both EMERGING?
+        if (
+          sameName &&
+          oppSet &&
+          oppSet.lifecycle === "EMERGING" &&
+          sameName.lifecycle === "EMERGING"
+        ) {
+          t += mag * 0.5;
+        } else if (
+          sameName &&
+          (sameName.lifecycle === "DECLINING" || sameName.lifecycle === "OBSOLETE")
+        ) {
+          // Quiet investment in an area we're abandoning
+          t += mag * 0.2;
+        } else {
+          t += mag * 0.25;
+        }
+      }
     }
   }
   return Math.round(clamp(t, 0, 100));
@@ -833,7 +997,9 @@ export function simulate(
           const deltas: TopologyDelta[] = [pl.delta];
           const category = deriveCategoryFromDeltas(deltas);
           const oppThreat =
-            actor === "OPPONENT" ? threatFromDeltas(deltas, own) : 0;
+            actor === "OPPONENT"
+              ? threatFromDeltas(deltas, own, effectiveCompetitor(competitor, scen).topology)
+              : 0;
           // SELF threat = how much we reduce parent opponent-threat — we model
           // this as (100 - parent.threat) per spec.
           const selfThreat =

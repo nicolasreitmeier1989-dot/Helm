@@ -7,14 +7,89 @@
 // from posture/warChest alone).
 
 import type {
+  Capability,
+  CapabilityDimension,
+  CapabilitySet,
   CompetitorProfile,
   OwnProfile,
   Scenario,
   Simulation,
+  StrategicTopology,
 } from "./types";
 
 const STORE_KEY = "helm:projects:v2";
 const LEGACY_STORE_KEY = "helm:projects:v1";
+
+// ---------- v0.3F migration: legacy capabilities (flat list, dimension on
+// the capability) → set-based topology with Legacy sets per dimension. ----
+
+let legacyMigrationWarned = false;
+
+function migrateTopology(topology: unknown): StrategicTopology {
+  const t = (topology ?? {}) as Partial<StrategicTopology> & {
+    capabilities?: (Capability & { dimension?: CapabilityDimension })[];
+  };
+  const out: StrategicTopology = {
+    capabilitySets: Array.isArray(t.capabilitySets) ? [...t.capabilitySets] : [],
+    capabilities: Array.isArray(t.capabilities)
+      ? t.capabilities.map((c) => ({ ...c }))
+      : [],
+    bmc: t.bmc && Array.isArray(t.bmc.blocks)
+      ? { blocks: t.bmc.blocks.map((b) => ({ ...b })) }
+      : { blocks: [] },
+    vpcs: Array.isArray(t.vpcs) ? t.vpcs.map((v) => ({ ...v })) : [],
+  };
+
+  // Check if any capability lacks setId — these are legacy.
+  const orphaned = out.capabilities.filter(
+    (c) => !c.setId && (c as { dimension?: CapabilityDimension }).dimension,
+  ) as (Capability & { dimension?: CapabilityDimension })[];
+
+  if (orphaned.length === 0) return out;
+
+  if (!legacyMigrationWarned) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[HELM] Legacy topology detected (capabilities without setId). Migrating to Legacy CapabilitySets.",
+    );
+    legacyMigrationWarned = true;
+  }
+
+  // Group by dimension and create Legacy sets where missing.
+  const dims: CapabilityDimension[] = ["PEOPLE", "TECH", "ORG", "PROCESSES"];
+  const legacySetByDim: Partial<Record<CapabilityDimension, CapabilitySet>> = {};
+  for (const dim of dims) {
+    const hasOrphans = orphaned.some((c) => c.dimension === dim);
+    if (!hasOrphans) continue;
+    let existing = out.capabilitySets.find(
+      (s) => s.dimension === dim && s.source === "CUSTOM" && /legacy/i.test(s.name),
+    );
+    if (!existing) {
+      existing = {
+        id: `cs-legacy-${dim.toLowerCase()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: `Legacy ${dim}`,
+        dimension: dim,
+        era: new Date().getFullYear(),
+        lifecycle: "MATURE",
+        source: "CUSTOM",
+        description: "Auto-migriert aus v0.3-Topologie ohne Capability-Set-Schicht.",
+      };
+      out.capabilitySets.push(existing);
+    }
+    legacySetByDim[dim] = existing;
+  }
+  out.capabilities = out.capabilities.map((c) => {
+    const dim = (c as { dimension?: CapabilityDimension }).dimension;
+    if (c.setId) return c;
+    if (!dim) return c;
+    const set = legacySetByDim[dim];
+    if (!set) return c;
+    const { dimension: _legacyDim, ...rest } = c as Capability & { dimension?: CapabilityDimension };
+    void _legacyDim;
+    return { ...rest, setId: set.id };
+  });
+  return out;
+}
 
 export interface ProjectVersion {
   id: string;
@@ -55,7 +130,24 @@ export function loadStore(): Store {
     const raw = window.localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Store;
-      if (parsed && Array.isArray(parsed.projects)) return parsed;
+      if (parsed && Array.isArray(parsed.projects)) {
+        // v0.3F migration: ensure each project's topologies use CapabilitySets.
+        const migrated: Store = {
+          ...parsed,
+          projects: parsed.projects.map((p) => ({
+            ...p,
+            competitor: {
+              ...p.competitor,
+              topology: migrateTopology(p.competitor?.topology),
+            },
+            own: {
+              ...p.own,
+              topology: migrateTopology(p.own?.topology),
+            },
+          })),
+        };
+        return migrated;
+      }
     }
     // Best-effort migration: detect legacy v1 entries.
     const legacy = window.localStorage.getItem(LEGACY_STORE_KEY);
@@ -110,7 +202,7 @@ export function createProject(name: string, p: Project["competitor"]): Project {
       openingMove: "",
       horizonRounds: 4,
       branchingFactor: 3,
-      topology: { capabilities: [], bmc: { blocks: [] }, vpcs: [] },
+      topology: { capabilitySets: [], capabilities: [], bmc: { blocks: [] }, vpcs: [] },
     },
     scenarios: [],
     versions: [],
