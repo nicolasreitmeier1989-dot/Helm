@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { loadBriefing } from "@/lib/briefing";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
-import type { Simulation } from "@/lib/types";
+import { bmcOverlapScore, labelsMatch } from "@/lib/topology";
+import type { Simulation, TopologyDelta } from "@/lib/types";
 
 export default function BriefingPage() {
   const [sim, setSim] = useState<Simulation | null>(null);
@@ -26,11 +27,26 @@ export default function BriefingPage() {
   const idx = threatIndex(sim);
   const heatmap = categoryHeatmap(sim);
   const paths = topPaths(sim, 5);
+  const overlap = bmcOverlapScore(sim.own.topology.bmc, sim.competitor.topology.bmc);
   const date = new Date().toLocaleDateString("de-DE", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  // Contested customer segments — for the BMC-Overlap-Diagram
+  const ourSegs = sim.own.topology.bmc.blocks.filter(
+    (b) => b.kind === "CUSTOMER_SEGMENTS",
+  );
+  const theirSegs = sim.competitor.topology.bmc.blocks.filter(
+    (b) => b.kind === "CUSTOMER_SEGMENTS",
+  );
+  const contested = ourSegs
+    .map((a) => {
+      const b = theirSegs.find((x) => labelsMatch(a.label, x.label));
+      return b ? { ours: a, theirs: b } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
   return (
     <>
@@ -92,6 +108,18 @@ export default function BriefingPage() {
             </div>
           </header>
 
+          {/* Rumelt Kernel — top of memo */}
+          <section className="mb-6 border border-black p-4">
+            <h2 className="font-mono text-[10px] tracking-widest text-neutral-500 mb-2">
+              STRATEGIC KERNEL (RUMELT)
+            </h2>
+            <div className="grid grid-cols-1 gap-3">
+              <KernelField label="Diagnosis" value={sim.own.diagnosis} />
+              <KernelField label="Guiding Policy" value={sim.own.guidingPolicy} />
+              <KernelField label="Opening Move" value={sim.own.openingMove} />
+            </div>
+          </section>
+
           <section className="mb-6">
             <h2 className="font-mono text-[10px] tracking-widest text-neutral-500 mb-1">
               EXECUTIVE SUMMARY
@@ -104,9 +132,11 @@ export default function BriefingPage() {
               gewichtete Bedrohungsindex liegt bei <strong>{idx}/100</strong>.
               Hauptdruck entsteht in den Kategorien{" "}
               <strong>{heatmap.slice(0, 3).map((h) => h.category).join(" / ")}</strong>
-              . Die Top-Trajektorie unten beschreibt den wahrscheinlichsten
-              Worst-Case-Pfad — wir empfehlen Pre-Empt durch die in
-              Sektion 2 aufgeführten Counter-Moves.
+              . BMC-Überlappung mit dem Wettbewerber beträgt{" "}
+              <strong>{overlap}/100</strong> — {contested.length} Customer-Segments
+              sind aktuell umkämpft. Die Top-Trajektorie unten beschreibt den
+              wahrscheinlichsten Worst-Case-Pfad — wir empfehlen Pre-Empt durch
+              die in Sektion 2 aufgeführten Counter-Moves.
             </p>
           </section>
 
@@ -122,10 +152,54 @@ export default function BriefingPage() {
               hint={`Kriegskasse ${sim.competitor.warChest} · Innovation ${sim.competitor.innovationIndex}`}
             />
             <Stat
-              label="Rollouts"
-              value={`${sim.scenarios.length} Szenarien`}
-              hint={sim.scenarios.map((s) => `${(s.weight * 100).toFixed(0)}%`).join(" / ")}
+              label="BMC Overlap"
+              value={`${overlap} / 100`}
+              hint={`${contested.length} umkämpfte Segmente`}
             />
+          </section>
+
+          {/* BMC OVERLAP DIAGRAM */}
+          <section className="mb-6">
+            <h2 className="font-mono text-[10px] tracking-widest text-neutral-500 mb-2">
+              BMC OVERLAP · KOLLISIONS-ZONEN
+            </h2>
+            {contested.length === 0 ? (
+              <p className="text-[11px] text-neutral-700 italic">
+                Keine direkten Kollisionen auf Customer-Segments-Ebene. Wettbewerb
+                läuft indirekt über benachbarte BMC-Blöcke.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {contested.map(({ ours, theirs }, i) => (
+                  <div
+                    key={i}
+                    className="border border-black grid grid-cols-[1fr_auto_1fr] items-center"
+                  >
+                    <div className="p-2 text-right border-r border-neutral-300">
+                      <div className="font-mono text-[9px] tracking-widest text-neutral-500">
+                        OUR STRENGTH
+                      </div>
+                      <div className="text-[13px] font-semibold">{ours.label}</div>
+                      <div className="font-mono text-[10px]">
+                        S = {ours.strength}
+                      </div>
+                    </div>
+                    <div className="px-2 py-1 text-center bg-black text-white font-mono text-[10px] tracking-widest">
+                      ⌖ CONTESTED
+                    </div>
+                    <div className="p-2 border-l border-neutral-300">
+                      <div className="font-mono text-[9px] tracking-widest text-neutral-500">
+                        THEIR STRENGTH
+                      </div>
+                      <div className="text-[13px] font-semibold">{theirs.label}</div>
+                      <div className="font-mono text-[10px]">
+                        S = {theirs.strength}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="mb-6">
@@ -158,6 +232,11 @@ export default function BriefingPage() {
             </h2>
             <ol className="space-y-3">
               {paths.map((p, i) => {
+                const finalOpp = [...p.ids]
+                  .reverse()
+                  .map((id) => sim.nodes[id])
+                  .find((n) => n.actor === "OPPONENT");
+                const dominant = finalOpp?.deltas?.[0];
                 return (
                   <li key={i} className="border-l-2 border-black pl-3">
                     <div className="flex items-center justify-between mb-0.5">
@@ -170,6 +249,12 @@ export default function BriefingPage() {
                         {p.totalThreat.toFixed(1)}
                       </span>
                     </div>
+                    {dominant && (
+                      <div className="font-mono text-[10px] text-neutral-700 mb-0.5">
+                        DOMINANT DELTA: {opGlyph(dominant)} {dominant.op} ·{" "}
+                        {dominant.layer} · {humanTarget(dominant)}
+                      </div>
+                    )}
                     <div className="text-[11px] leading-relaxed">
                       {p.ids
                         .map((id) => {
@@ -215,6 +300,7 @@ export default function BriefingPage() {
                 .map((id) => sim.nodes[id])
                 .find((n) => n.actor === "OPPONENT");
               if (!lastOpp) return null;
+              const dominant = lastOpp.deltas?.[0];
               return (
                 <article
                   key={i}
@@ -231,6 +317,12 @@ export default function BriefingPage() {
                   <h3 className="text-[14px] font-semibold leading-tight mb-1">
                     ⌖ {lastOpp.title}
                   </h3>
+                  {dominant && (
+                    <div className="font-mono text-[10px] text-neutral-700 mb-1">
+                      DELTA: {opGlyph(dominant)} {dominant.op} · {dominant.layer} ·{" "}
+                      {humanTarget(dominant)} (MAG {dominant.magnitude})
+                    </div>
+                  )}
                   <p className="text-[11px] text-neutral-700 leading-relaxed mb-2">
                     {lastOpp.rationale}
                   </p>
@@ -263,15 +355,16 @@ export default function BriefingPage() {
               METHODIK
             </h2>
             <p className="text-[10.5px] text-neutral-700 leading-relaxed">
-              HELM erzeugt einen probabilistischen Spielbaum aus Posture,
-              Kriegskasse, Innovationsindex, Markenmacht, Leadership-Bias und
-              beobachteten Signalen des Wettbewerbers. Conditional Probabilities
-              werden per Sibling-Set normalisiert. Threat-Index ist EV-gewichtet
-              (Wahrscheinlichkeit × Schaden) über alle gegnerischen Knoten,
-              skaliert auf 0..100. Trajektorien werden nach Composite-Score
-              (Pfad-Wahrscheinlichkeit × kumulierte Threat-Last) sortiert.
-              Counter-Move-Vorschläge sind per Kategorie kuratiert und an den
-              jeweiligen Zug gebunden.
+              HELM modelliert beide Seiten als drei-Schicht-Strategic-Topology
+              (Capabilities · Business Model Canvas · Value Proposition Canvas).
+              Gegnerische Züge werden als Topology-Deltas auf der gegnerischen
+              Topologie generiert; Threat wird aus der Kollision dieser Deltas
+              mit unserer Topologie berechnet (BMC-Überlappung × 0.4, VPC-Item
+              auf geteiltem Segment × 0.6, asymmetrischer Angriff auf
+              schwach-aber-wichtige Capability × 0.5). Conditional Probabilities
+              werden per Sibling-Set normalisiert. Trajektorien werden nach
+              Composite-Score (Pfad-Wahrscheinlichkeit × kumulierte Threat-Last)
+              sortiert.
             </p>
           </section>
 
@@ -315,4 +408,38 @@ function Stat({
       )}
     </div>
   );
+}
+
+function KernelField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[9px] tracking-widest text-neutral-500 uppercase mb-0.5">
+        {label}
+      </div>
+      <div className="text-[12px] leading-relaxed">
+        {value || <span className="italic text-neutral-400">— nicht definiert —</span>}
+      </div>
+    </div>
+  );
+}
+
+function opGlyph(d: TopologyDelta): string {
+  switch (d.op) {
+    case "ADD": return "+";
+    case "STRENGTHEN": return "↑";
+    case "WEAKEN": return "↓";
+    case "REMOVE": return "−";
+    case "MIGRATE": return "⤴";
+  }
+}
+
+function humanTarget(d: TopologyDelta): string {
+  const t = d.target;
+  if (t.kind === "CAPABILITY") {
+    return `${t.dimension}${d.newLabel ? ` "${d.newLabel}"` : ""}`;
+  }
+  if (t.kind === "BMC_BLOCK") {
+    return `${t.blockKind.replace(/_/g, " ").toLowerCase()}${d.newLabel ? ` "${d.newLabel}"` : ""}`;
+  }
+  return `${t.itemKind}${d.newLabel ? ` "${d.newLabel}"` : ""}`;
 }
