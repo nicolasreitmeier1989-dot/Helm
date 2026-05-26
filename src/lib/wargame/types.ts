@@ -1,6 +1,7 @@
-// WFC Boss Battle — type definitions (v2, interactive 5-round combat).
-// Models a turn-based fight between the user's company and a worst-feared
-// AI-native competitor. The player picks one of 2-5 dynamic choices each round.
+// WFC Boss Battle — type definitions (v4 — portfolio picking + competitor-first).
+// Each round: competitor strikes first, then player picks a PORTFOLIO of counter
+// moves (max 1 per category, constrained by capital budget), then competitor
+// follows up. Stats are computed by summing all applied effects.
 
 export type StatKey = "hp" | "capital" | "speed" | "brand" | "ip";
 
@@ -27,6 +28,18 @@ export type MoveCategory =
   | "brand"
   | "regulatory"
   | "product";
+
+export const CATEGORY_ORDER: MoveCategory[] = [
+  "pricing",
+  "product",
+  "talent",
+  "capital",
+  "channel",
+  "brand",
+  "ip",
+  "regulatory",
+  "speed",
+];
 
 export type Combatant = {
   name: string;
@@ -55,18 +68,16 @@ export type Choice = {
   description: string;
   /** Human-readable cost preview e.g. "Burns ~$2M and 6 weeks" */
   costPreview: string;
-  /** Risk hint shown on the card */
+  /** Risk hint */
   risk: "low" | "medium" | "high";
-  /** What the player effectively does when this is picked */
+  /** Capital units this move consumes from the round's budget */
+  capitalCost: number;
+  /** Move card data shown when this choice resolves */
   playerMove: Move;
-  /** How the competitor reacts */
-  competitorResponse: Move;
-  /** Stats AFTER this exchange (absolute, not delta) */
-  playerStateAfter: Stats;
-  /** Stats AFTER this exchange (absolute, not delta) */
-  competitorStateAfter: Stats;
-  /** Post-exchange narrative (2-3 sentences, dramatic) */
-  exchangeNarrative: string;
+  /** Stat deltas applied to the PLAYER when this choice is picked */
+  selfEffect: Partial<Stats>;
+  /** Stat deltas applied to the COMPETITOR when this choice is picked */
+  competitorEffect: Partial<Stats>;
 };
 
 export type Round = {
@@ -74,12 +85,43 @@ export type Round = {
   roundNumber: number;
   /** Human label e.g. "Months 0-6" */
   quarterLabel: string;
-  /** What just happened / where we are */
+  /** Stage-setting line shown at round start */
   setupNarrative: string;
-  /** Hint to the player about what the competitor seems to be planning */
+  /** 1-sentence hint at what the competitor is about to do */
   competitorTell: string;
-  /** 2-5 options. Later rounds typically have fewer. */
-  choices: Choice[];
+
+  /**
+   * The competitor strikes FIRST each round (Pokémon-style).
+   * Player watches this hit land, takes opening damage, then picks portfolio.
+   */
+  competitorOpening: Move;
+  openingDamageToPlayer: Partial<Stats>;
+  openingCostToCompetitor: Partial<Stats>;
+
+  /**
+   * Capital budget for the round's counter-portfolio.
+   * Player can pick any combination of choices whose summed capitalCost <= this.
+   * Drops in later rounds to model resource depletion.
+   */
+  capitalBudget: number;
+
+  /**
+   * Pool of counter options. Player picks 0..N, max 1 per category.
+   */
+  choicePool: Choice[];
+
+  /**
+   * After player commits, competitor follows up regardless of which counters
+   * were picked (their plan was already set).
+   */
+  competitorFollowUp: Move;
+  followUpDamageToPlayer: Partial<Stats>;
+  followUpCostToCompetitor: Partial<Stats>;
+
+  /**
+   * Single-sentence summary used as round-resolution caption.
+   */
+  resolutionLine: string;
 };
 
 export type TodayAction = {
@@ -90,13 +132,9 @@ export type TodayAction = {
 
 export type Endgame = {
   outcome: "victory" | "defeat" | "stalemate";
-  /** Verdict headline, e.g. "Survived. Margins thin." */
   headline: string;
-  /** 1-paragraph cinematic summary of how it played out */
   summary: string;
-  /** Exactly 3 short reasons */
   reasons: string[];
-  /** Exactly 3 actions for the user this week */
   todayActions: TodayAction[];
 };
 
@@ -109,9 +147,8 @@ export type EndgameTemplates = {
 export type Simulation = {
   player: Combatant;
   competitor: Combatant;
-  /** Exactly 5 rounds, each with precomputed choices + outcomes */
+  /** Exactly 5 rounds. */
   rounds: Round[];
-  /** Three possible endgames; the client picks one based on final player HP */
   endgameTemplates: EndgameTemplates;
 };
 
@@ -120,3 +157,37 @@ export type SimulationRequest = {
   sector: string;
   pitch: string;
 };
+
+/* ───────────── helpers (kept in types to avoid an extra file) ───────────── */
+
+export function clampStat(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+export function applyDelta(s: Stats, d: Partial<Stats>): Stats {
+  return {
+    hp: clampStat(s.hp + (d.hp ?? 0)),
+    capital: clampStat(s.capital + (d.capital ?? 0)),
+    speed: clampStat(s.speed + (d.speed ?? 0)),
+    brand: clampStat(s.brand + (d.brand ?? 0)),
+    ip: clampStat(s.ip + (d.ip ?? 0)),
+  };
+}
+
+export function sumDeltas(...deltas: Array<Partial<Stats>>): Partial<Stats> {
+  const out: Partial<Stats> = {};
+  const keys: StatKey[] = ["hp", "capital", "speed", "brand", "ip"];
+  for (const k of keys) {
+    let v = 0;
+    let any = false;
+    for (const d of deltas) {
+      if (d[k] != null) {
+        v += d[k] as number;
+        any = true;
+      }
+    }
+    if (any) out[k] = v;
+  }
+  return out;
+}
