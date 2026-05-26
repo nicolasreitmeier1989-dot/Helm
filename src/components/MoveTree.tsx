@@ -221,7 +221,11 @@ export function MoveTree({
               {isOpp && (
                 <div
                   className="absolute top-1 right-1 font-mono text-[9px] tracking-wider opacity-80"
-                  title="Expected value × probability, scaled 0–100"
+                  title={
+                    node.adjudication
+                      ? `realized threat after friction · intent was ${node.adjudication.intentThreat}`
+                      : "Expected value × probability, scaled 0–100"
+                  }
                 >
                   T{node.threat}
                 </div>

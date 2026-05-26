@@ -31,6 +31,8 @@ import {
   deriveCategoryFromDeltas,
   sharedBlocks,
 } from "./topology";
+import { adjudicate } from "./adjudication";
+import type { AIPatternId } from "./aiNativePatterns";
 
 // Helper: derive a capability's dimension via its set membership.
 function dimOfCap(cap: Capability, topology: StrategicTopology): CapabilityDimension | null {
@@ -897,7 +899,7 @@ export function simulate(
   competitor: CompetitorProfile,
   own: OwnProfile,
   scenarios: Scenario[],
-  opts?: { seed?: string },
+  opts?: { seed?: string; aiPattern?: AIPatternId },
 ): Simulation {
   const seedStr = opts?.seed ?? `${competitor.name}|${own.name}|${own.openingMove}|${own.horizonRounds}|${own.branchingFactor}`;
   const rand = rng(hashString(seedStr));
@@ -996,14 +998,33 @@ export function simulate(
           const id = nextId();
           const deltas: TopologyDelta[] = [pl.delta];
           const category = deriveCategoryFromDeltas(deltas);
-          const oppThreat =
+          const effComp = effectiveCompetitor(competitor, scen);
+          // Phase 5X: intent first, then adjudicate to a realized threat.
+          const intentThreat =
             actor === "OPPONENT"
-              ? threatFromDeltas(deltas, own, effectiveCompetitor(competitor, scen).topology)
+              ? threatFromDeltas(deltas, own, effComp.topology)
               : 0;
           // SELF threat = how much we reduce parent opponent-threat — we model
           // this as (100 - parent.threat) per spec.
           const selfThreat =
             actor === "SELF" ? Math.max(0, 100 - parent.threat) : 0;
+
+          let adjudication;
+          let realizedThreat = intentThreat;
+          if (actor === "OPPONENT") {
+            adjudication = adjudicate(
+              {
+                deltas,
+                intentThreat,
+                category,
+                cost: pl.cost,
+              },
+              effComp,
+              own.topology,
+              { round, aiPattern: opts?.aiPattern },
+            );
+            realizedThreat = adjudication.realizedThreat;
+          }
 
           const node: MoveNode = {
             id,
@@ -1014,11 +1035,13 @@ export function simulate(
             title: pl.title,
             rationale:
               actor === "OPPONENT"
-                ? `${POSTURE_RATIONALE[effectiveCompetitor(competitor, scen).posture]} ${pl.description}`
+                ? `${POSTURE_RATIONALE[effComp.posture]} ${pl.description}`
                 : `Antwortzug. ${pl.description}`,
             probability: prob,
             cumulativeProbability: parent.cumulativeProbability * prob,
-            threat: actor === "OPPONENT" ? oppThreat : selfThreat,
+            threat: actor === "OPPONENT" ? realizedThreat : selfThreat,
+            intentThreat: actor === "OPPONENT" ? intentThreat : undefined,
+            adjudication: actor === "OPPONENT" ? adjudication : undefined,
             cost: pl.cost,
             deltas,
             counters:

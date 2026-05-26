@@ -37,6 +37,7 @@ export default function BriefingPage() {
   }
 
   const idx = threatIndex(sim);
+  const intentIdx = intentThreatIndex(sim);
   const heatmap = categoryHeatmap(sim);
   const paths = topPaths(sim, 5);
   const overlap = bmcOverlapScore(sim.own.topology.bmc, sim.competitor.topology.bmc);
@@ -142,7 +143,10 @@ export default function BriefingPage() {
               <strong>{sim.competitor.name}</strong> ({sim.competitor.posture},
               Marktanteil {(sim.competitor.marketShare * 100).toFixed(0)}%). Der
               gewichtete Bedrohungsindex liegt bei <strong>{idx}/100</strong>.
-              Hauptdruck entsteht in den Kategorien{" "}
+              Diese Zahl berücksichtigt Friction (regulatorischer Drag,
+              Kapazitätsdefizite, Coalition-Risiken). Intent-Threat ohne Friction
+              läge bei <strong>{intentIdx}/100</strong>. Hauptdruck entsteht in
+              den Kategorien{" "}
               <strong>{heatmap.slice(0, 3).map((h) => h.category).join(" / ")}</strong>
               . BMC-Überlappung mit dem Wettbewerber beträgt{" "}
               <strong>{overlap}/100</strong> — {contested.length} Customer-Segments
@@ -444,6 +448,22 @@ export default function BriefingPage() {
 
 function countOpponentMoves(sim: Simulation): number {
   return Object.values(sim.nodes).filter((n) => n.actor === "OPPONENT").length;
+}
+
+// Same shape as engine.threatIndex but reads `intentThreat` (pre-friction)
+// where available. Used by the Executive Summary to surface the gap.
+function intentThreatIndex(sim: Simulation): number {
+  let s = 0;
+  let n = 0;
+  for (const id in sim.nodes) {
+    const node = sim.nodes[id];
+    if (node.actor !== "OPPONENT") continue;
+    const t = node.intentThreat ?? node.threat;
+    s += t * node.cumulativeProbability;
+    n += node.cumulativeProbability;
+  }
+  if (n === 0) return 0;
+  return Math.min(100, Math.round((s / n) * 1.15));
 }
 
 function truncate(s: string, n: number): string {

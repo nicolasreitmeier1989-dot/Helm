@@ -202,7 +202,12 @@ export interface MoveNode {
   rationale: string;
   probability: number;          // 0..1 conditional probability (given parent)
   cumulativeProbability: number;// 0..1
-  threat: number;               // 0..100, threat-to-us; COMPUTED from deltas in v0.3
+  // Phase 5X: `threat` is now the REALIZED (post-friction) threat for
+  // OPPONENT nodes. The pre-friction value is in `intentThreat`. SELF
+  // nodes continue to set `threat = 100 - parent.threat` (no friction).
+  threat: number;               // 0..100, realized threat-to-us
+  intentThreat?: number;        // 0..100, pre-friction (OPPONENT only)
+  adjudication?: Adjudication;  // white-cell adjudication (OPPONENT only)
   cost: number;                 // 0..100, cost-to-opponent
   deltas: TopologyDelta[];      // NEW — what shifts on the topology
   counters: string[];           // our suggested counter-moves
@@ -211,6 +216,45 @@ export interface MoveNode {
   // Derived summary tag for visualization grouping (computed from dominant
   // delta target). Kept for backward compatibility with v0.2 panels.
   category: MoveCategory;
+}
+
+// ---------- Phase 5X: White-cell adjudication (intent vs effect) ----------
+//
+// Friction between strategic intent and operational outcome. Real corporate
+// moves fail to land at intended magnitude ~60% of the time (regulatory
+// drag, internal coalition collapse, capability deficits, customer inertia,
+// capital shortfalls, time-to-impact lag, execution risk). The adjudication
+// layer computes a probability distribution over {achieved, partial,
+// blocked} and a realized-threat that is the intent-threat scaled by the
+// expected realization fraction.
+
+export type FrictionFactor =
+  | "REGULATORY_DRAG"
+  | "COALITION_RISK"
+  | "CAPABILITY_DEFICIT"
+  | "CUSTOMER_INERTIA"
+  | "CAPITAL_SHORTFALL"
+  | "TIME_TO_IMPACT_LAG"
+  | "EXECUTION_RISK";
+
+export interface OutcomeDistribution {
+  achieved: number;  // 0..1 — move lands at intended magnitude
+  partial: number;   // 0..1 — move lands at reduced magnitude
+  blocked: number;   // 0..1 — move fails to land
+}
+
+export interface Friction {
+  factor: FrictionFactor;
+  magnitude: number;  // 0..1
+  rationale: string;
+}
+
+export interface Adjudication {
+  intentThreat: number;          // 0..100 — what the move would do if achieved
+  outcomeDistribution: OutcomeDistribution;
+  frictions: Friction[];
+  expectedRealization: number;   // 0..1 — 1*achieved + 0.5*partial + 0*blocked
+  realizedThreat: number;        // 0..100 — intentThreat × expectedRealization
 }
 
 // ---------- Indicators & Triggers (Strategic Operations Center) ----------

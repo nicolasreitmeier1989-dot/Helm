@@ -4,6 +4,7 @@ import type { Simulation, TopologyDelta, Trigger } from "@/lib/types";
 import { BarMeter, Card, Label, Stat } from "./Chrome";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
 import { fireTrigger, ackTrigger, dismissTrigger, resetTrigger } from "@/lib/triggers";
+import { FRICTION_LABELS } from "@/lib/adjudication";
 
 export function ThreatPanel({ sim }: { sim: Simulation }) {
   const heatmap = categoryHeatmap(sim);
@@ -126,15 +127,116 @@ export function NodeDetail({
           <div className="text-[14px] text-ink-950 leading-tight">{node.title}</div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Stat label="THREAT" value={node.threat} hint="0..100" />
-          <Stat label="COMPETITOR COST" value={node.cost} hint="0..100" />
-        </div>
+        {node.actor === "OPPONENT" && node.adjudication ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-stretch">
+              <div className="border border-ink-300/50 bg-ink-100/40 p-3">
+                <Label>Intent Threat</Label>
+                <div className="font-mono text-ink-700 text-lg tracking-tight flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 bg-amber-700/80 rounded-full" />
+                  {node.adjudication.intentThreat}
+                </div>
+                <div className="font-mono text-[10px] text-ink-500 mt-1 tracking-wider">
+                  ohne Friction
+                </div>
+              </div>
+              <div className="border border-ink-900 bg-ink-900 text-ink-0 p-3">
+                <span className="font-mono text-[9px] tracking-widest text-ink-300 uppercase block mb-1">
+                  Realized Threat
+                </span>
+                <div className="font-mono text-ink-0 text-2xl tracking-tight">
+                  {node.adjudication.realizedThreat}
+                </div>
+                <div className="font-mono text-[10px] text-ink-400 mt-1 tracking-wider">
+                  nach Friction · ER={(node.adjudication.expectedRealization * 100).toFixed(0)}%
+                </div>
+              </div>
+              <div className="border border-ink-300/50 bg-ink-100/40 p-3 w-[112px]">
+                <Label>Cost</Label>
+                <div className="font-mono text-ink-900 text-base tracking-tight">{node.cost}</div>
+                <div className="font-mono text-[10px] text-ink-500 mt-1 tracking-wider">
+                  0..100
+                </div>
+              </div>
+            </div>
+            {/* Intent-vs-realized bar */}
+            <ThreatIntentBar
+              intent={node.adjudication.intentThreat}
+              realized={node.adjudication.realizedThreat}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="THREAT" value={node.threat} hint="0..100" />
+            <Stat label="COMPETITOR COST" value={node.cost} hint="0..100" />
+          </div>
+        )}
 
         <div>
           <Label>Rationale</Label>
           <div className="text-[12px] text-ink-800 leading-relaxed">{node.rationale}</div>
         </div>
+
+        {node.actor === "OPPONENT" && node.adjudication && (
+          <>
+            <div>
+              <Label>Frictions</Label>
+              {node.adjudication.frictions.length === 0 ? (
+                <div className="text-[11px] text-ink-500 italic">
+                  Keine Friction-Faktoren erkannt — Intent ≈ Realized.
+                </div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {node.adjudication.frictions.map((f, i) => (
+                    <li
+                      key={`${f.factor}-${i}`}
+                      className="border border-ink-300/60 bg-ink-100/40 px-2.5 py-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-mono text-[10px] tracking-widest text-ink-900">
+                          {FRICTION_LABELS[f.factor]}
+                        </span>
+                        <span className="font-mono text-[9px] tracking-widest text-ink-500">
+                          MAG {(f.magnitude * 100).toFixed(0)}
+                        </span>
+                      </div>
+                      <div className="h-1 bg-ink-200 mb-1 overflow-hidden">
+                        <div
+                          className="h-full bg-ink-700"
+                          style={{ width: `${Math.min(100, f.magnitude * 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-[11px] text-ink-700 leading-relaxed">
+                        {f.rationale}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <Label>Outcome Distribution</Label>
+              <div className="space-y-1.5">
+                <OutcomeBar
+                  label="ACHIEVED"
+                  value={node.adjudication.outcomeDistribution.achieved}
+                  tone="dark"
+                />
+                <OutcomeBar
+                  label="PARTIAL"
+                  value={node.adjudication.outcomeDistribution.partial}
+                  tone="mid"
+                />
+                <OutcomeBar
+                  label="BLOCKED"
+                  value={node.adjudication.outcomeDistribution.blocked}
+                  tone="light"
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {node.deltas && node.deltas.length > 0 && (
           <div>
@@ -361,4 +463,84 @@ function deltaTargetLabel(d: TopologyDelta): string {
 
 function humanBlockKind(k: string): string {
   return k.replace(/_/g, " ").toLowerCase();
+}
+
+// ---------- adjudication presentation helpers ----------
+
+function ThreatIntentBar({
+  intent,
+  realized,
+}: {
+  intent: number;
+  realized: number;
+}) {
+  const intentPct = Math.max(0, Math.min(100, intent));
+  const realizedPct = Math.max(0, Math.min(100, realized));
+  return (
+    <div className="border border-ink-300/50 bg-ink-100/40 px-2.5 py-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-mono text-[9px] tracking-widest text-ink-500">
+          THREAT BAR · INTENT vs REALIZED
+        </span>
+        <span className="font-mono text-[9px] tracking-widest text-ink-500">
+          0..100
+        </span>
+      </div>
+      <div className="relative h-3 bg-ink-200 overflow-hidden">
+        {/* Realized — solid fill */}
+        <div
+          className="absolute inset-y-0 left-0 bg-ink-900"
+          style={{ width: `${realizedPct}%` }}
+        />
+        {/* Intent — vertical tick marker (extends beyond realized) */}
+        {intentPct > realizedPct && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-amber-700"
+            style={{ left: `${intentPct}%` }}
+            title={`Intent ${intent}`}
+          >
+            <div className="absolute -top-0.5 -left-0.5 w-[3px] h-[3px] bg-amber-700" />
+            <div className="absolute -bottom-0.5 -left-0.5 w-[3px] h-[3px] bg-amber-700" />
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-1 font-mono text-[9px] tracking-wider text-ink-700">
+        <span>
+          <span className="inline-block w-1.5 h-1.5 bg-ink-900 mr-1 align-middle" />
+          REALIZED {realized}
+        </span>
+        <span>
+          <span className="inline-block w-px h-2 bg-amber-700 mr-1 align-middle" />
+          INTENT {intent}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function OutcomeBar({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "dark" | "mid" | "light";
+}) {
+  const pct = Math.max(0, Math.min(100, value * 100));
+  const bar =
+    tone === "dark" ? "bg-ink-900" : tone === "mid" ? "bg-ink-500" : "bg-ink-300";
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono text-[10px] tracking-widest text-ink-700 w-20 shrink-0">
+        {label}
+      </span>
+      <div className="flex-1 h-2 bg-ink-200 overflow-hidden">
+        <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-[10px] text-ink-800 w-12 text-right">
+        {pct.toFixed(0)}%
+      </span>
+    </div>
+  );
 }
