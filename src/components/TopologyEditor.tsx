@@ -31,32 +31,38 @@ export function TopologyEditor({
   name,
   topology,
   onChange,
+  initialTab = "CAPABILITIES",
+  showTabs = true,
 }: {
   which: "OWN" | "OPPONENT";
   name: string;
   topology: StrategicTopology;
   onChange: (next: StrategicTopology) => void;
+  initialTab?: TabKey;
+  showTabs?: boolean;
 }) {
-  const [tab, setTab] = useState<TabKey>("CAPABILITIES");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const sideLabel = which === "OWN" ? "OWN POSITION" : "OPPONENT TOPOLOGY";
 
   return (
     <Card title={`TOPOLOGY // ${name}`} meta={sideLabel}>
-      <div className="flex items-center gap-1 mb-3 border-b border-ink-300/60 -mx-4 px-4 pb-1.5">
-        {(["CAPABILITIES", "BMC", "VPC"] as TabKey[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`font-mono text-[10px] tracking-widest px-2.5 py-1 border transition-colors ${
-              tab === t
-                ? "border-ink-900 bg-ink-900 text-ink-0"
-                : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      {showTabs && (
+        <div className="flex items-center gap-1 mb-3 border-b border-ink-300/60 -mx-4 px-4 pb-1.5">
+          {(["CAPABILITIES", "BMC", "VPC"] as TabKey[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`font-mono text-[10px] tracking-widest px-2.5 py-1 border transition-colors ${
+                tab === t
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === "CAPABILITIES" && (
         <CapabilitiesTab topology={topology} onChange={onChange} />

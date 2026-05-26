@@ -251,6 +251,38 @@ export function appendVersion(
   return upsertProject(store, updated);
 }
 
+// ---------- Active-project helpers (wizard / landing) ----------
+//
+// setActiveProject — points the store at one of its existing projects and
+// persists. Caller may set null to clear. Does nothing if the id doesn't
+// match any project.
+//
+// getActiveProject — returns the currently active project or null.
+
+export function setActiveProject(projectId: string | null): void {
+  const store = loadStore();
+  if (projectId !== null && !store.projects.some((p) => p.id === projectId)) {
+    return;
+  }
+  saveStore({ ...store, activeProjectId: projectId });
+}
+
+export function getActiveProject(): Project | null {
+  const store = loadStore();
+  if (!store.activeProjectId) return null;
+  return store.projects.find((p) => p.id === store.activeProjectId) ?? null;
+}
+
+// saveActiveProject — convenience: upsert a project AND mark it active.
+// Used by the wizard's final step before redirecting to /dashboard.
+
+export function saveActiveProject(project: Project): Project {
+  const store = loadStore();
+  const next = upsertProject(store, project);
+  saveStore({ ...next, activeProjectId: project.id });
+  return project;
+}
+
 export function projectFromSimulation(
   name: string,
   sim: Simulation,

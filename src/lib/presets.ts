@@ -457,6 +457,45 @@ export const DEFAULT_OWN: OwnProfile = {
   topology: HELM_TOPOLOGY,
 };
 
+// ---------- Empty / wizard-friendly templates ----------
+//
+// EMPTY_OWN — a minimally-seeded OwnProfile that the wizard fills as the user
+// types. Topology is empty so the user starts from a blank canvas.
+// EMPTY_COMPETITOR — same idea: a generic competitor with placeholder posture
+// and an empty topology. Used by the Express path when the user only types
+// name + industry.
+
+const EMPTY_TOPOLOGY: StrategicTopology = {
+  capabilitySets: [],
+  capabilities: [],
+  bmc: { blocks: [] },
+  vpcs: [],
+};
+
+export const EMPTY_OWN: OwnProfile = {
+  name: "OUR COMPANY",
+  intent: "",
+  diagnosis: "",
+  guidingPolicy: "",
+  openingMove: "",
+  horizonRounds: 4,
+  branchingFactor: 3,
+  topology: EMPTY_TOPOLOGY,
+};
+
+export const EMPTY_COMPETITOR: CompetitorProfile = {
+  name: "COMPETITOR",
+  industry: "",
+  marketShare: 0.2,
+  warChest: 60,
+  innovationIndex: 55,
+  brandPower: 55,
+  posture: "OPPORTUNISTIC",
+  leadershipBias: 0,
+  recentSignals: [],
+  topology: EMPTY_TOPOLOGY,
+};
+
 export const DEFAULT_SCENARIOS: Scenario[] = [
   {
     id: "s1",

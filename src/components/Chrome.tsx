@@ -2,9 +2,18 @@
 
 import { useEffect, useState } from "react";
 
-export function TopBar({ sessionId }: { sessionId: string }) {
+export type TopBarVariant = "FULL" | "MINIMAL";
+
+export function TopBar({
+  sessionId,
+  variant = "FULL",
+}: {
+  sessionId?: string;
+  variant?: TopBarVariant;
+}) {
   const [now, setNow] = useState<string>("--:--:--");
   useEffect(() => {
+    if (variant === "MINIMAL") return;
     const tick = () => {
       const d = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
@@ -13,27 +22,54 @@ export function TopBar({ sessionId }: { sessionId: string }) {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [variant]);
+
+  if (variant === "MINIMAL") {
+    return (
+      <header className="border-b border-ink-300/60 bg-ink-0 sticky top-0 z-30">
+        <div className="flex items-center justify-between px-6 h-12 max-w-6xl mx-auto w-full">
+          <div className="flex items-center gap-2">
+            <Glyph />
+            <span className="font-mono text-[11px] tracking-widest text-ink-900">HELM</span>
+            <span className="font-mono text-[10px] tracking-widest text-ink-500">v0.4</span>
+          </div>
+          <div className="flex items-center gap-4 text-[10px] font-mono tracking-wider text-ink-500">
+            <a
+              href="/dashboard"
+              className="hover:text-ink-900 transition-colors"
+            >
+              DASHBOARD
+            </a>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="border-b border-ink-300/60 bg-ink-50/80 backdrop-blur sticky top-0 z-30">
       <div className="flex items-center justify-between px-6 h-12">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <Glyph />
-            <span className="font-mono text-[11px] tracking-widest text-ink-900">HELM</span>
-            <span className="font-mono text-[10px] tracking-widest text-ink-500">// ADVERSARIAL STRATEGY ENGINE</span>
+            <a href="/" className="flex items-center gap-2 group">
+              <Glyph />
+              <span className="font-mono text-[11px] tracking-widest text-ink-900 group-hover:text-ink-1000">HELM</span>
+            </a>
+            <span className="font-mono text-[10px] tracking-widest text-ink-500">// COMPETITIVE STRATEGY ENGINE</span>
           </div>
           <div className="hidden md:flex items-center gap-4 text-[10px] font-mono tracking-wider text-ink-500">
-            <span>v0.1.0</span>
+            <span>v0.4.0</span>
             <span>·</span>
             <span>BUILD-2026.05</span>
-            <span>·</span>
-            <span className="text-ink-700">SESSION {sessionId}</span>
+            {sessionId && (
+              <>
+                <span>·</span>
+                <span className="text-ink-700">SESSION {sessionId}</span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4 text-[10px] font-mono tracking-wider text-ink-600">
-          <span className="hidden sm:inline">CLASSIFICATION // CONFIDENTIAL</span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-ink-900 pulse-soft" />
             LIVE
@@ -58,10 +94,10 @@ function Glyph() {
 
 function Ticker() {
   const items = [
-    "PROTOCOL HELM-Δ ACTIVE",
+    "STRATEGIC FORESIGHT v0.4 ACTIVE",
     "MULTI-SCENARIO ROLLOUT ENABLED",
-    "MINIMAX-FORWARD TREE / HORIZON 3–5 ROUNDS",
-    "OPPONENT MODEL // BAYES-WEIGHTED PRIORS",
+    "FORWARD-PLANNING TREE / HORIZON 3–5 ROUNDS",
+    "COMPETITOR MODEL // BAYES-WEIGHTED PRIORS",
     "COUNTER-MOVE LIBRARY 0.4.2",
     "DETERMINISTIC SEED ENABLED",
     "EXPECTED-VALUE × THREAT COMPOSITE SCORE",
