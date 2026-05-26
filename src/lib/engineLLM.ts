@@ -1,103 +1,74 @@
-// HELM — Claude-backed strategic reasoner.
-// Server-side only. Returns the same Simulation shape as the local heuristic,
-// so the UI is identical regardless of backend.
+// HELM — Claude-backed strategic reasoner (v0.3).
+//
+// Returns the same Simulation shape as the local heuristic, so the UI is
+// identical regardless of backend. Updated for the topology model: each move
+// the LLM emits now carries a `dominant_target` plus a short rationale. Full
+// TopologyDelta synthesis is then done locally — this keeps the JSON schema
+// small enough that structured-outputs validation always succeeds, while
+// still letting Claude choose WHICH layer / dimension / block to hit.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { attachIndicatorsToSimulation } from "./engine";
+import { deriveCategoryFromDeltas } from "./topology";
 import type {
+  BMCBlockKind,
+  CapabilityDimension,
   CompetitorProfile,
   MoveCategory,
   MoveNode,
   OwnProfile,
   Scenario,
   Simulation,
+  TopologyDelta,
 } from "./types";
 
-// ---------- Static prompt material (cached) ----------
+// ---------- Static prompt material ----------
 
-const CATEGORIES: MoveCategory[] = [
-  "PRICING",
-  "PRODUCT",
-  "M&A",
-  "TALENT",
-  "GEO",
-  "CHANNEL",
-  "BRAND",
-  "REGULATORY",
-  "CAPITAL",
-  "PARTNERSHIP",
-];
-
-// Long, frozen system prompt. Comes BEFORE any volatile content (per
-// shared/prompt-caching.md). Min cacheable prefix on Opus 4.7 is 4096 tokens
-// — this prompt + move library is sized to clear that bar.
 const SYSTEM_PROMPT = `You are HELM, an adversarial strategy reasoner for corporate competitive intelligence.
-Your job is to simulate how a specific competitor will respond to our opening move across multiple rounds
-and multiple scenarios, and to recommend our counter-moves. You think like a game-theory analyst combined
-with a top-tier strategy partner: you anticipate the opponent 3–5 moves ahead, weight branches by realistic
-conditional probability, and identify the highest expected-loss trajectories so that we can pre-empt them.
 
-# MENTAL MODEL
+You simulate how a specific competitor will respond to our opening move across multiple rounds and multiple
+scenarios, then recommend our counter-moves. You think like a game-theory analyst combined with a top-tier
+strategy partner: anticipate the opponent 3–5 moves ahead, weight branches by realistic conditional
+probability, identify the highest expected-loss trajectories.
 
-Round T0 is our opening move. Rounds T1, T3, T5… are OPPONENT moves (their best response to the state of
-play). Rounds T2, T4, T6… are our SELF moves (our best response to their response). Within each round,
-the actor considers several plausible moves — these are the children of the parent node. Conditional
-probabilities of siblings must sum to ~1.0.
+# THE STRATEGIC TOPOLOGY (the model you reason over)
 
-For OPPONENT moves you reason FROM THE OPPONENT'S PERSPECTIVE. You weight their move set by:
-- Posture (AGGRESSIVE / EXPANSIVE / DEFENSIVE / OPPORTUNISTIC / CONSERVATIVE) — defines their default risk tolerance.
-- Leadership bias (-100 visionary/founder, +100 PE/optimizer) — visionary tilts toward PRODUCT, BRAND, GEO, M&A;
-  optimizer tilts toward CAPITAL discipline, REGULATORY moats, CHANNEL economics, PRICING optimization.
-- War chest — gates capital-intensive moves (M&A, CAPITAL, GEO expansion).
-- Innovation index — gates PRODUCT and PARTNERSHIP options.
-- Brand power — gates BRAND-led plays and category repositioning.
-- Recent signals — these are heavy priors. If the opponent just hired 12 senior people in a vertical, TALENT
-  and GEO moves in that vertical become much more likely.
+Every entity (us + competitor) has a THREE-LAYER topology:
 
-For SELF moves you act as our strategist: address the opponent's threat surgically, prefer asymmetric counters
-(low cost for us / high cost for them), and protect cash-generating cores.
+1) CAPABILITIES across four dimensions — PEOPLE, TECH, ORG, PROCESSES — each capability has a level (0..100)
+   and an importance (0..100). High importance + low level = a strategic vulnerability. High level + high
+   importance = a moat.
 
-# MOVE CATEGORIES
+2) BUSINESS MODEL CANVAS — the 9 Osterwalder blocks: CUSTOMER_SEGMENTS, VALUE_PROPOSITIONS, CHANNELS,
+   CUSTOMER_RELATIONSHIPS, REVENUE_STREAMS, KEY_RESOURCES, KEY_ACTIVITIES, KEY_PARTNERS, COST_STRUCTURE.
+   Each block has a strength (0..100). Shared CUSTOMER_SEGMENTS between the opponent and us = collision.
 
-PRICING: list/discount architecture, bundling, lock-in contracts, freemium, premium tier launches.
-PRODUCT: feature launches, platform plays, vertical solutions, deprecations, AI-native re-architectures.
-M&A: full acquisitions, tuck-ins, joint ventures, carve-outs, divestitures, strategic spin-offs.
-TALENT: targeted senior hires, acqui-hires, talent hub buildout, restructurings.
-GEO: market entry, regional headquarters, exits from sub-scale geographies.
-CHANNEL: D2C pivots, reseller programs, marketplace deals, field-force scaling.
-BRAND: repositioning, category creation, thought leadership, comparative campaigns, deliberate silence.
-REGULATORY: standardization lobbying, antitrust filings, compliance certifications, data residency moves.
-CAPITAL: mega-rounds, IPO preparation, debt facilities, buybacks, cost programs.
-PARTNERSHIP: hyperscaler co-sell, supplier exclusives, ecosystem alliances, open-source foundations.
+3) VALUE PROPOSITION CANVAS (per segment) — customerProfile (jobs/pains/gains) vs valueMap
+   (productsServices/painRelievers/gainCreators). Attacks on the valueMap of a shared segment are the
+   hottest competitive moves.
 
-# REASONING DISCIPLINE
+# MENTAL MODEL FOR MOVES
 
-- Branch probabilities are conditional on the parent path. Siblings must sum to ~1.0 (we will normalize
-  slightly if needed).
-- Threat is OUR risk if the move executes (0..100). Cost is what the move costs the actor (0..100).
-- Counter-moves attached to OPPONENT nodes are CONCRETE actions WE can take to neutralize that specific
-  threat — not generic platitudes. They should reference the lever (price-match, retention package,
-  defensive M&A, regulatory filing, channel exclusive, etc.).
-- Rationale on each node is one short sentence linking the move to the opponent's profile and to the
-  parent move. Avoid filler.
-- Be realistic: aggressive opponents do not suddenly play conservatively without a reason in the signals.
-- 4–5 categories should appear across each scenario's tree — diversity prevents single-axis tunnel vision.
+Every move shifts ONE point on the topology. You pick:
+  - the LAYER (CAPABILITIES, BMC, or VPC)
+  - the OP (ADD, STRENGTHEN, WEAKEN, REMOVE, MIGRATE)
+  - the TARGET (which dimension / which block kind / which VPC item kind)
+  - a magnitude (0..100)
+
+For OPPONENT moves you reason FROM the OPPONENT'S perspective. Weight their move set by their posture, their
+leadership bias, their war chest, innovation index, brand power and recent signals.
+
+For SELF (our) moves you act as our strategist: counter the opponent's specific delta. Prefer asymmetric
+moves (low cost / high impact). Defend our moats. Exploit the opponent's structural gaps.
+
+Round T0 is our opening (the implicit root provided by the user). Rounds T1, T3 = OPPONENT moves;
+Rounds T2, T4 = SELF moves. Sibling probabilities must sum to ~1.0 (we will normalize).
 
 # OUTPUT
 
-Return JSON exactly conforming to the schema. Do NOT include the opening move as a child — it is the
-implicit root provided by the user. The first round of children (round 1) are OPPONENT responses to our
-opening. Then round 2 are OUR responses to each opponent move. And so on, alternating, up to the user's
-horizon. Use a stable temp_id per scenario (e.g. "s1m3" — scenario 1 move 3).
-
-The user message will provide the competitor profile, our position, the scenarios (each carries a weight
-and possibly an override on the competitor's posture / war chest / innovation that you must adopt for that
-scenario only), and the horizon + branching factor. Respect both.`;
-
-// ---------- Output schema (must satisfy structured-outputs constraints) ----------
-// - additionalProperties: false on every object
-// - No recursion (we use parent_temp_id references inside a flat list)
-// - All declared properties listed in `required`
+Return JSON exactly conforming to the schema. Do NOT include the opening move as a child — it's the root.
+The first round of children (round 1) are OPPONENT responses. Use a stable temp_id per scenario
+(e.g. "s1m3"). Categories are derived locally — you don't need to set them.`;
 
 const SIMULATION_SCHEMA = {
   type: "object",
@@ -111,10 +82,7 @@ const SIMULATION_SCHEMA = {
         additionalProperties: false,
         properties: {
           scenario_index: { type: "integer" },
-          root_rationale: {
-            type: "string",
-            description: "Why this opening provokes the responses in this scenario.",
-          },
+          root_rationale: { type: "string" },
           moves: {
             type: "array",
             items: {
@@ -124,23 +92,75 @@ const SIMULATION_SCHEMA = {
                 temp_id: { type: "string" },
                 parent_temp_id: {
                   anyOf: [{ type: "string" }, { type: "null" }],
-                  description: "null means this node is a child of the opening move.",
                 },
                 round: { type: "integer" },
                 actor: { type: "string", enum: ["OPPONENT", "SELF"] },
-                category: { type: "string", enum: CATEGORIES as unknown as string[] },
                 title: { type: "string" },
                 rationale: { type: "string" },
-                probability: {
-                  type: "number",
-                  description: "Conditional probability given parent, 0..1.",
-                },
-                threat: { type: "integer", description: "0..100, our risk if executed." },
+                probability: { type: "number" },
                 cost: { type: "integer", description: "0..100, cost to the actor." },
+                // Dominant target — selected from a fixed enum so the schema
+                // stays compact. Threat & deltas are synthesized locally.
+                layer: {
+                  type: "string",
+                  enum: ["CAPABILITIES", "BMC", "VPC"],
+                },
+                op: {
+                  type: "string",
+                  enum: ["ADD", "STRENGTHEN", "WEAKEN", "REMOVE", "MIGRATE"],
+                },
+                capability_dimension: {
+                  anyOf: [
+                    { type: "string", enum: ["PEOPLE", "TECH", "ORG", "PROCESSES"] },
+                    { type: "null" },
+                  ],
+                  description: "Required when layer = CAPABILITIES.",
+                },
+                bmc_block_kind: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      enum: [
+                        "CUSTOMER_SEGMENTS",
+                        "VALUE_PROPOSITIONS",
+                        "CHANNELS",
+                        "CUSTOMER_RELATIONSHIPS",
+                        "REVENUE_STREAMS",
+                        "KEY_RESOURCES",
+                        "KEY_ACTIVITIES",
+                        "KEY_PARTNERS",
+                        "COST_STRUCTURE",
+                      ],
+                    },
+                    { type: "null" },
+                  ],
+                  description: "Required when layer = BMC or VPC (parent block of the VPC).",
+                },
+                vpc_side: {
+                  anyOf: [
+                    { type: "string", enum: ["CUSTOMER_PROFILE", "VALUE_MAP"] },
+                    { type: "null" },
+                  ],
+                },
+                vpc_item_kind: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      enum: [
+                        "jobs", "pains", "gains",
+                        "productsServices", "painRelievers", "gainCreators",
+                      ],
+                    },
+                    { type: "null" },
+                  ],
+                },
+                target_label: {
+                  type: "string",
+                  description: "Short human label for what is being changed.",
+                },
+                magnitude: { type: "integer", description: "0..100" },
                 counters: {
                   type: "array",
-                  description:
-                    "3–4 concrete counter-moves (only populated for OPPONENT nodes; empty for SELF).",
                   items: { type: "string" },
                 },
               },
@@ -149,12 +169,18 @@ const SIMULATION_SCHEMA = {
                 "parent_temp_id",
                 "round",
                 "actor",
-                "category",
                 "title",
                 "rationale",
                 "probability",
-                "threat",
                 "cost",
+                "layer",
+                "op",
+                "capability_dimension",
+                "bmc_block_kind",
+                "vpc_side",
+                "vpc_item_kind",
+                "target_label",
+                "magnitude",
                 "counters",
               ],
             },
@@ -187,11 +213,8 @@ export async function simulateWithClaude(
   }
 
   const client = new Anthropic();
-
   const userPayload = buildUserPayload(input);
 
-  // Long output (multi-scenario, multi-round structured JSON) → stream so we
-  // don't hit SDK HTTP timeouts. Adaptive thinking lets Opus 4.7 decide depth.
   const stream = client.messages.stream({
     model: "claude-opus-4-7",
     max_tokens: 32000,
@@ -236,20 +259,32 @@ export async function simulateWithClaude(
   });
 }
 
-// ---------- Helpers ----------
+// ---------- helpers ----------
 
 function buildUserPayload(input: SimulateLLMInput): string {
-  // Compact, deterministic JSON in the user turn — no timestamps, no Date.now().
-  // (Anything volatile here is OK; it sits AFTER the cached system prefix.)
   return JSON.stringify(
     {
-      competitor: input.competitor,
+      competitor: {
+        name: input.competitor.name,
+        industry: input.competitor.industry,
+        marketShare: input.competitor.marketShare,
+        warChest: input.competitor.warChest,
+        innovationIndex: input.competitor.innovationIndex,
+        brandPower: input.competitor.brandPower,
+        posture: input.competitor.posture,
+        leadershipBias: input.competitor.leadershipBias,
+        recentSignals: input.competitor.recentSignals,
+        topology: input.competitor.topology,
+      },
       own: {
         name: input.own.name,
         intent: input.own.intent,
+        diagnosis: input.own.diagnosis,
+        guiding_policy: input.own.guidingPolicy,
         opening_move: input.own.openingMove,
         horizon_rounds: input.own.horizonRounds,
         branching_factor: input.own.branchingFactor,
+        topology: input.own.topology,
       },
       scenarios: input.scenarios.map((s, i) => ({
         index: i,
@@ -260,7 +295,7 @@ function buildUserPayload(input: SimulateLLMInput): string {
         modifiers: s.modifiers,
       })),
       instructions:
-        "Return scenarios[] in the same order. For each scenario, produce a tree that respects the requested horizon and branching factor. Apply the scenario's modifiers (if any) as an override on the competitor profile for THIS scenario only.",
+        "Return scenarios[] in the same order. For each scenario, build a tree respecting horizon and branching. Apply scenario modifiers as a competitor-profile override for THAT scenario only. Pick deltas that exploit OUR structural weaknesses (low-level + high-importance capabilities; weak BMC blocks; shared customer segments).",
     },
     null,
     0,
@@ -272,12 +307,25 @@ interface LLMMove {
   parent_temp_id: string | null;
   round: number;
   actor: "OPPONENT" | "SELF";
-  category: MoveCategory;
   title: string;
   rationale: string;
   probability: number;
-  threat: number;
   cost: number;
+  layer: "CAPABILITIES" | "BMC" | "VPC";
+  op: "ADD" | "STRENGTHEN" | "WEAKEN" | "REMOVE" | "MIGRATE";
+  capability_dimension: CapabilityDimension | null;
+  bmc_block_kind: BMCBlockKind | null;
+  vpc_side: "CUSTOMER_PROFILE" | "VALUE_MAP" | null;
+  vpc_item_kind:
+    | "jobs"
+    | "pains"
+    | "gains"
+    | "productsServices"
+    | "painRelievers"
+    | "gainCreators"
+    | null;
+  target_label: string;
+  magnitude: number;
   counters: string[];
 }
 
@@ -298,6 +346,84 @@ interface Usage {
   outputTokens: number;
 }
 
+function deltaFromLLM(m: LLMMove): TopologyDelta {
+  const layer = m.layer;
+  if (layer === "CAPABILITIES" && m.capability_dimension) {
+    return {
+      layer,
+      op: m.op,
+      target: { kind: "CAPABILITY", dimension: m.capability_dimension },
+      newLabel: m.op === "ADD" ? m.target_label : undefined,
+      magnitude: clamp(m.magnitude, 0, 100),
+      description: m.target_label,
+    };
+  }
+  if (layer === "BMC" && m.bmc_block_kind) {
+    return {
+      layer,
+      op: m.op,
+      target: { kind: "BMC_BLOCK", blockKind: m.bmc_block_kind },
+      newLabel: m.op === "ADD" ? m.target_label : undefined,
+      magnitude: clamp(m.magnitude, 0, 100),
+      description: m.target_label,
+    };
+  }
+  if (layer === "VPC" && m.vpc_side && m.vpc_item_kind) {
+    return {
+      layer,
+      op: m.op,
+      target: {
+        kind: "VPC_ITEM",
+        side: m.vpc_side,
+        itemKind: m.vpc_item_kind,
+      },
+      newLabel: m.op === "ADD" ? m.target_label : undefined,
+      magnitude: clamp(m.magnitude, 0, 100),
+      description: m.target_label,
+    };
+  }
+  // Fallback — degenerate to a BMC VALUE_PROPOSITIONS strengthen
+  return {
+    layer: "BMC",
+    op: "STRENGTHEN",
+    target: { kind: "BMC_BLOCK", blockKind: "VALUE_PROPOSITIONS" },
+    magnitude: clamp(m.magnitude, 0, 100),
+    description: m.target_label || "Value-Prop reinforce",
+  };
+}
+
+function threatFromDeltasLLM(
+  deltas: TopologyDelta[],
+  own: OwnProfile,
+): number {
+  const ourTop = own.topology;
+  let t = 0;
+  for (const d of deltas) {
+    const mag = clamp(d.magnitude, 0, 100);
+    const tgt = d.target;
+
+    if (tgt.kind === "BMC_BLOCK") {
+      const haveSameKind = ourTop.bmc.blocks.some((b) => b.kind === tgt.blockKind);
+      if (haveSameKind) t += mag * 0.4;
+    }
+    if (tgt.kind === "VPC_ITEM") {
+      t += mag * 0.6;
+    }
+    if (tgt.kind === "CAPABILITY") {
+      const ourCaps = ourTop.capabilities.filter((c) => c.dimension === tgt.dimension);
+      const avgLevel =
+        ourCaps.length === 0
+          ? 30
+          : ourCaps.reduce((s, c) => s + c.level, 0) / ourCaps.length;
+      const maxImp =
+        ourCaps.length === 0 ? 50 : Math.max(...ourCaps.map((c) => c.importance));
+      if (avgLevel < 65 && maxImp >= 65) t += mag * 0.5;
+      else t += mag * 0.25;
+    }
+  }
+  return Math.round(Math.max(0, Math.min(100, t)));
+}
+
 function assembleSimulation(
   resp: LLMResponse,
   input: SimulateLLMInput,
@@ -309,7 +435,6 @@ function assembleSimulation(
   let nodeCounter = 0;
   const nextId = () => `n${(++nodeCounter).toString(36)}`;
 
-  // Sort scenarios by declared index just in case the model returned them out of order.
   const sorted = [...resp.scenarios].sort(
     (a, b) => a.scenario_index - b.scenario_index,
   );
@@ -317,7 +442,6 @@ function assembleSimulation(
   sorted.forEach((scen, idx) => {
     const scenario = input.scenarios[scen.scenario_index] ?? input.scenarios[idx];
 
-    // Root: our opening move.
     const rootId = nextId();
     nodes[rootId] = {
       id: rootId,
@@ -337,11 +461,8 @@ function assembleSimulation(
     };
     rootIds.push(rootId);
 
-    // Map temp_id → global id
     const idMap: Record<string, string> = {};
-    for (const m of scen.moves) {
-      idMap[m.temp_id] = nextId();
-    }
+    for (const m of scen.moves) idMap[m.temp_id] = nextId();
 
     // Normalize sibling probabilities per parent and per round.
     const groups: Record<string, LLMMove[]> = {};
@@ -356,26 +477,32 @@ function assembleSimulation(
       });
     }
 
-    // Build nodes in round order so parents exist before children.
     const movesByRound = [...scen.moves].sort((a, b) => a.round - b.round);
     for (const m of movesByRound) {
       const id = idMap[m.temp_id];
       const parentId = m.parent_temp_id ? idMap[m.parent_temp_id] : rootId;
       const parent = nodes[parentId];
       if (!parent) continue;
+      const delta = deltaFromLLM(m);
+      const deltas: TopologyDelta[] = [delta];
+      const category: MoveCategory = deriveCategoryFromDeltas(deltas);
+      const threat =
+        m.actor === "OPPONENT"
+          ? threatFromDeltasLLM(deltas, input.own)
+          : Math.max(0, 100 - parent.threat);
       const node: MoveNode = {
         id,
         parentId,
         round: m.round,
         actor: m.actor,
-        category: m.category,
+        category,
         title: m.title,
         rationale: m.rationale,
         probability: m.probability,
         cumulativeProbability: parent.cumulativeProbability * m.probability,
-        threat: clamp(m.threat, 0, 100),
+        threat,
         cost: clamp(m.cost, 0, 100),
-        deltas: [],
+        deltas,
         counters: m.actor === "OPPONENT" ? (m.counters || []).slice(0, 4) : [],
         children: [],
       };
@@ -392,13 +519,9 @@ function assembleSimulation(
     scenarios: input.scenarios,
     nodes,
     rootIds,
-    // Stash usage for the UI debug strip.
-    // (Not part of the canonical type; cast via index access.)
     ...({ usage } as Record<string, unknown>),
   } as Simulation;
 
-  // Attach deterministic indicators to OPPONENT nodes so triggers / watchlist
-  // work uniformly across backends.
   attachIndicatorsToSimulation(sim);
   return sim;
 }

@@ -1,9 +1,21 @@
-// HELM — deterministic move-tree generator.
-// Pure heuristic engine: no external calls. Produces a reproducible game tree
-// from a (competitor, own, scenarios) tuple. Designed to be replaced or augmented
-// by an LLM-backed reasoner without changing the consuming UI.
+// HELM — delta-driven move-tree generator (v0.3).
+//
+// Replaces the static MOVE_LIBRARY heuristic with a topology-aware generator.
+// For each OPPONENT move it identifies a strategic target on the opponent's
+// own topology (a weak BMC block they'd reinforce, a high-importance
+// capability they'd leverage, a contested customer segment) and emits a
+// TopologyDelta describing the shift. Threat is then COMPUTED from how that
+// delta collides with OUR topology — VPC overlap on a shared segment is
+// hottest; capability asymmetry on our weak/important areas is also hot.
+//
+// SELF moves at even rounds invert: deltas operate on OUR topology and threat
+// is 100 - parent.threat (the move's effectiveness at reducing the threat).
 
 import type {
+  BMCBlock,
+  BMCBlockKind,
+  Capability,
+  CapabilityDimension,
   CompetitorProfile,
   Indicator,
   IndicatorSource,
@@ -13,7 +25,11 @@ import type {
   Posture,
   Scenario,
   Simulation,
+  StrategicTopology,
+  TopologyDelta,
+  ValuePropositionCanvas,
 } from "./types";
+import { deriveCategoryFromDeltas, sharedBlocks } from "./topology";
 
 // ---------- deterministic PRNG (mulberry32) ----------
 function hashString(s: string): number {
@@ -35,81 +51,17 @@ function rng(seed: number) {
   };
 }
 
-// ---------- knowledge base ----------
-const POSTURE_WEIGHTS: Record<Posture, Partial<Record<MoveCategory, number>>> = {
-  AGGRESSIVE:    { PRICING: 1.5, "M&A": 1.4, BRAND: 1.2, GEO: 1.3, TALENT: 1.1, PRODUCT: 1.1, CHANNEL: 1.0, REGULATORY: 0.7, CAPITAL: 1.0, PARTNERSHIP: 0.9 },
-  EXPANSIVE:     { GEO: 1.6, PARTNERSHIP: 1.4, CHANNEL: 1.3, "M&A": 1.2, PRODUCT: 1.1, BRAND: 1.0, TALENT: 1.0, PRICING: 0.9, CAPITAL: 1.1, REGULATORY: 0.8 },
-  DEFENSIVE:     { REGULATORY: 1.5, BRAND: 1.3, TALENT: 1.2, PRODUCT: 1.1, CAPITAL: 1.2, CHANNEL: 1.0, PARTNERSHIP: 1.0, PRICING: 0.8, GEO: 0.7, "M&A": 0.8 },
-  OPPORTUNISTIC: { "M&A": 1.5, CAPITAL: 1.4, PARTNERSHIP: 1.3, TALENT: 1.2, PRODUCT: 1.0, PRICING: 1.1, BRAND: 1.0, GEO: 1.1, CHANNEL: 1.0, REGULATORY: 0.9 },
-  CONSERVATIVE:  { CAPITAL: 1.4, PRODUCT: 1.2, REGULATORY: 1.2, BRAND: 1.1, CHANNEL: 1.0, TALENT: 1.0, PARTNERSHIP: 1.0, PRICING: 0.8, GEO: 0.7, "M&A": 0.6 },
+// ---------- shared rationale & posture descriptors ----------
+
+const POSTURE_RATIONALE: Record<Posture, string> = {
+  AGGRESSIVE:    "Maximierung des Druckpotenzials, akzeptiert hohe Risiken zur Umverteilung von Marktanteilen.",
+  EXPANSIVE:     "Volumen vor Marge — Reichweite, Distribution und neue Geografien dominieren das Kalkül.",
+  DEFENSIVE:     "Schutz bestehender Cash-Flows, präferiert Moats, Compliance und Talent-Retention.",
+  OPPORTUNISTIC: "Liest schwache Signale aggressiv, gewichtet Optionalität und anorganische Sprünge hoch.",
+  CONSERVATIVE:  "Kapitaldisziplin und operative Exzellenz priorisiert; meidet binäre Wetten.",
 };
 
-const MOVE_LIBRARY: Record<MoveCategory, { title: string; threat: number; cost: number }[]> = {
-  PRICING: [
-    { title: "Aggressive Preisunterbietung im Kernsegment",                threat: 80, cost: 70 },
-    { title: "Bundling-Offensive zur Margenverwässerung",                  threat: 65, cost: 50 },
-    { title: "Freemium-Layer zur Marktdurchdringung",                      threat: 60, cost: 55 },
-    { title: "Premium-Tier-Launch zur Margenexpansion",                    threat: 35, cost: 30 },
-    { title: "Mehrjahresverträge mit Lock-in-Klauseln",                    threat: 70, cost: 25 },
-  ],
-  PRODUCT: [
-    { title: "Plattform-Release mit offener Schnittstelle",                threat: 70, cost: 70 },
-    { title: "Akquisition eines spezialisierten Tech-Stacks",              threat: 75, cost: 80 },
-    { title: "KI-gestützte Workflow-Suite",                                threat: 80, cost: 75 },
-    { title: "Vertikalisierte Lösung für Schlüsselkunden",                 threat: 65, cost: 60 },
-    { title: "End-of-life Legacy zugunsten Next-Gen-Stack",                threat: 45, cost: 55 },
-  ],
-  "M&A": [
-    { title: "Übernahme eines direkten Wettbewerbers",                     threat: 90, cost: 90 },
-    { title: "Tuck-in eines Nischenanbieters",                             threat: 55, cost: 45 },
-    { title: "Joint Venture mit Hyperscaler",                              threat: 70, cost: 50 },
-    { title: "Spin-off einer Sparte zur Fokussierung",                     threat: 25, cost: 30 },
-    { title: "Carve-out eines Konkurrenz-Segments",                        threat: 65, cost: 70 },
-  ],
-  TALENT: [
-    { title: "Headhunting Schlüsselpersonen aus unserer Org",              threat: 75, cost: 30 },
-    { title: "Acqui-Hire eines Founding Teams",                            threat: 65, cost: 55 },
-    { title: "Aufbau Standort in Talent-Hub",                              threat: 50, cost: 60 },
-    { title: "Großflächiger Restructuring-Plan",                           threat: 30, cost: 50 },
-  ],
-  GEO: [
-    { title: "Markteintritt DACH / Direct-Sales",                          threat: 70, cost: 65 },
-    { title: "APAC-Hub via lokalem Joint Venture",                         threat: 60, cost: 70 },
-    { title: "US-Ostküsten-Push für Enterprise-Accounts",                  threat: 75, cost: 75 },
-    { title: "Rückzug aus unprofitablen Regionen",                         threat: 20, cost: 25 },
-  ],
-  CHANNEL: [
-    { title: "Direct-to-Customer-Pivot",                                   threat: 65, cost: 60 },
-    { title: "Reseller-Programm mit Margen-Anreiz",                        threat: 55, cost: 40 },
-    { title: "Marketplace-Exklusivpartnerschaft",                          threat: 70, cost: 35 },
-    { title: "Field Sales Force Verdopplung",                              threat: 60, cost: 70 },
-  ],
-  BRAND: [
-    { title: "Repositionierung als Kategorie-Definierer",                  threat: 60, cost: 55 },
-    { title: "Thought-Leadership-Offensive (Konferenz, Studien)",          threat: 45, cost: 35 },
-    { title: "Globale Kampagne gegen Status-quo-Player",                   threat: 70, cost: 60 },
-    { title: "Stille Phase / kein PR-Output",                              threat: 20, cost: 5  },
-  ],
-  REGULATORY: [
-    { title: "Lobbying für Standardisierung zu eigenen Gunsten",           threat: 70, cost: 40 },
-    { title: "Beschwerde wegen marktbeherrschender Stellung",              threat: 65, cost: 25 },
-    { title: "Zertifizierungsoffensive (SOC2, ISO, EU AI Act)",            threat: 50, cost: 45 },
-    { title: "Datenresidenz-Push für regulierte Branchen",                 threat: 55, cost: 50 },
-  ],
-  CAPITAL: [
-    { title: "Mega-Funding-Round zur Marktbeherrschung",                   threat: 80, cost: 30 },
-    { title: "IPO-Vorbereitung",                                           threat: 50, cost: 40 },
-    { title: "Strategic Convertible mit Mega-LP",                          threat: 60, cost: 25 },
-    { title: "Aggressive Aktienrückkäufe / Signal an Markt",               threat: 30, cost: 50 },
-    { title: "Kostensenkung 20 % / Cash-Konservierung",                    threat: 25, cost: 40 },
-  ],
-  PARTNERSHIP: [
-    { title: "Exklusivpartnerschaft mit Schlüsselzulieferer",              threat: 65, cost: 30 },
-    { title: "Co-Sell mit Hyperscaler",                                    threat: 70, cost: 35 },
-    { title: "Ökosystem-Allianz mit Komplementäranbietern",                threat: 55, cost: 25 },
-    { title: "Open-Source-Stiftung als Köder",                             threat: 50, cost: 30 },
-  ],
-};
+// ---------- Counter library (category-tagged, kept from v0.2) ----------
 
 const COUNTER_LIBRARY: Record<MoveCategory, string[]> = {
   PRICING: [
@@ -131,7 +83,7 @@ const COUNTER_LIBRARY: Record<MoveCategory, string[]> = {
     "Kartellrechtliche Hinweise an zuständige Behörde",
   ],
   TALENT: [
-    "Retention-Pakete für Top-10 % High-Performer",
+    "Retention-Pakete für Top-10% High-Performer",
     "Non-Solicit-Verträge schärfen",
     "Counter-Recruiting aus deren Talentpool",
     "Equity-Refresher mit Cliff",
@@ -174,16 +126,13 @@ const COUNTER_LIBRARY: Record<MoveCategory, string[]> = {
   ],
 };
 
-// ---------- Indicator library ----------
-// Each category maps to a small pool of observable leading indicators an
-// analyst could realistically pick up from public/streaming intel. Two of these
-// are deterministically attached to every OPPONENT node so triggers can be
-// armed and the watchlist has real content out of the box.
+// ---------- Indicator library (kept for trigger system) ----------
+
 interface IndicatorTemplate {
   label: string;
   source: IndicatorSource;
   description: string;
-  weight: number; // base diagnostic weight 0..1
+  weight: number;
 }
 
 const INDICATOR_LIBRARY: Record<MoveCategory, IndicatorTemplate[]> = {
@@ -249,11 +198,6 @@ const INDICATOR_LIBRARY: Record<MoveCategory, IndicatorTemplate[]> = {
   ],
 };
 
-/**
- * Idempotently attach indicators to every OPPONENT node in a simulation
- * (used after assembling LLM-produced trees, where indicator generation isn't
- * part of the model contract). Deterministic given the simulation id + node id.
- */
 export function attachIndicatorsToSimulation(sim: Simulation): void {
   const seedBase = hashString(sim.id);
   for (const id in sim.nodes) {
@@ -269,7 +213,6 @@ function buildIndicators(node: MoveNode, rand: () => number): Indicator[] {
   if (node.actor !== "OPPONENT") return [];
   const pool = INDICATOR_LIBRARY[node.category] ?? [];
   if (pool.length === 0) return [];
-  // Deterministic shuffle, pick top-2.
   const order = pool
     .map((t, i) => ({ t, i, r: rand() }))
     .sort((a, b) => a.r - b.r)
@@ -284,15 +227,15 @@ function buildIndicators(node: MoveNode, rand: () => number): Indicator[] {
   }));
 }
 
-const POSTURE_RATIONALE: Record<Posture, string> = {
-  AGGRESSIVE:    "Maximierung des Druckpotenzials, akzeptiert hohe Risiken zur Umverteilung von Marktanteilen.",
-  EXPANSIVE:     "Volumen vor Marge — Reichweite, Distribution und neue Geografien dominieren das Kalkül.",
-  DEFENSIVE:     "Schutz bestehender Cash-Flows, präferiert Moats, Compliance und Talent-Retention.",
-  OPPORTUNISTIC: "Liest schwache Signale aggressiv, gewichtet Optionalität und anorganische Sprünge hoch.",
-  CONSERVATIVE:  "Kapitaldisziplin und operative Exzellenz priorisiert; meidet binäre Wetten.",
-};
+// ---------- delta plan ----------
 
-// ---------- helpers ----------
+interface DeltaPlan {
+  delta: TopologyDelta;
+  title: string;
+  rationale: string;
+  cost: number;
+}
+
 function pickWeighted<T>(items: { value: T; weight: number }[], r: number): T {
   const total = items.reduce((s, i) => s + Math.max(0, i.weight), 0);
   let x = r * total;
@@ -303,60 +246,489 @@ function pickWeighted<T>(items: { value: T; weight: number }[], r: number): T {
   return items[items.length - 1].value;
 }
 
-function categoryWeights(p: CompetitorProfile, scenario?: Scenario): { value: MoveCategory; weight: number }[] {
-  const eff: CompetitorProfile = { ...p, ...(scenario?.modifiers ?? {}) };
-  const base = POSTURE_WEIGHTS[eff.posture];
-  const bias = eff.leadershipBias / 100; // -1..1
-  return (Object.keys(MOVE_LIBRARY) as MoveCategory[]).map((cat) => {
-    let w = base[cat] ?? 1.0;
-    // Founder/visionary boosts product, brand, capital, geo, m&a
-    const founderTilt: MoveCategory[] = ["PRODUCT", "BRAND", "CAPITAL", "GEO", "M&A"];
-    const optimizerTilt: MoveCategory[] = ["CAPITAL", "REGULATORY", "CHANNEL", "PRICING"];
-    if (founderTilt.includes(cat)) w *= 1 + Math.max(0, -bias) * 0.35;
-    if (optimizerTilt.includes(cat)) w *= 1 + Math.max(0, bias) * 0.35;
-    // War chest gates M&A and CAPITAL
-    if (cat === "M&A" || cat === "CAPITAL") w *= 0.4 + (eff.warChest / 100) * 1.2;
-    // Innovation gates PRODUCT
-    if (cat === "PRODUCT") w *= 0.5 + (eff.innovationIndex / 100) * 1.0;
-    // Brand gates BRAND
-    if (cat === "BRAND") w *= 0.5 + (eff.brandPower / 100) * 0.8;
-    return { value: cat, weight: w };
+// ---------- target selection on opponent's topology ----------
+
+interface CandidateTarget {
+  description: string;
+  delta: TopologyDelta;
+  cost: number;
+  title: string;
+  weight: number;
+}
+
+function opponentMoveCandidates(
+  comp: CompetitorProfile,
+  own: OwnProfile,
+  scen: Scenario,
+): CandidateTarget[] {
+  const opp = effectiveCompetitor(comp, scen);
+  const oppTop = opp.topology;
+  const ourTop = own.topology;
+  const candidates: CandidateTarget[] = [];
+
+  const postureBoost = (cat: MoveCategory): number => {
+    const w = POSTURE_WEIGHTS[opp.posture][cat] ?? 1.0;
+    return w;
+  };
+  const bias = opp.leadershipBias / 100; // -1..1
+  const visionary = Math.max(0, -bias);  // 0..1
+  const optimizer = Math.max(0, bias);   // 0..1
+
+  // ---- 1. STRENGTHEN existing high-strength BMC blocks (defensive plays) ----
+  for (const blk of oppTop.bmc.blocks) {
+    if (blk.strength < 60) continue; // only fortify what's already a moat
+    const mag = clamp(40 + (100 - blk.strength) * 0.3 + visionary * 10, 30, 90);
+    const cat = catFromBlock(blk.kind, "STRENGTHEN");
+    const w = postureBoost(cat) * (opp.posture === "DEFENSIVE" ? 1.5 : 1.0);
+    candidates.push({
+      title: `Verstärkung "${blk.label}" als Moat-Ausbau`,
+      description: `${opp.name} verteidigt ${blk.kind} "${blk.label}".`,
+      cost: clamp(35 + blk.strength * 0.2, 20, 70),
+      weight: w,
+      delta: {
+        layer: "BMC",
+        op: "STRENGTHEN",
+        target: { kind: "BMC_BLOCK", blockKind: blk.kind, blockId: blk.id },
+        magnitude: mag,
+        description: `Verstärkt ${humanBlockKind(blk.kind)} "${blk.label}" (+${Math.round(
+          mag * 0.5,
+        )} Punkte Stärke).`,
+      },
+    });
+  }
+
+  // ---- 2. STRENGTHEN weak BMC blocks (reinforce gaps) ----
+  for (const blk of oppTop.bmc.blocks) {
+    if (blk.strength >= 60) continue;
+    const mag = clamp(50 + (60 - blk.strength) * 0.6, 40, 95);
+    const cat = catFromBlock(blk.kind, "STRENGTHEN");
+    let w = postureBoost(cat) * 1.1;
+    // Gap-filling is more attractive for OPPORTUNISTIC and DEFENSIVE postures
+    if (opp.posture === "OPPORTUNISTIC") w *= 1.3;
+    if (opp.posture === "DEFENSIVE") w *= 1.2;
+    candidates.push({
+      title: `Schließung Schwachstelle "${blk.label}"`,
+      description: `${opp.name} schließt Lücke in ${blk.kind}.`,
+      cost: clamp(45 + (60 - blk.strength) * 0.4, 35, 85),
+      weight: w,
+      delta: {
+        layer: "BMC",
+        op: "STRENGTHEN",
+        target: { kind: "BMC_BLOCK", blockKind: blk.kind, blockId: blk.id },
+        magnitude: mag,
+        description: `Schließt Lücke in ${humanBlockKind(blk.kind)} "${blk.label}" (+${Math.round(
+          mag * 0.5,
+        )} Punkte Stärke).`,
+      },
+    });
+  }
+
+  // ---- 3. ADD new BMC blocks (expansion / aggressive moves) ----
+  // Most interesting: contested customer segments + new channels
+  const expansionPlans: { kind: BMCBlockKind; label: string; cat: MoveCategory }[] = [
+    { kind: "CUSTOMER_SEGMENTS", label: "Adjazentes Vertikalsegment (Insurance Mid-Market)", cat: "GEO" },
+    { kind: "VALUE_PROPOSITIONS", label: "AI-Native Workflow-Augmentation", cat: "PRODUCT" },
+    { kind: "CHANNELS", label: "Hyperscaler-Marketplace-Direct-Listing", cat: "CHANNEL" },
+    { kind: "KEY_RESOURCES", label: "EU-Datenresidenz-Cluster (Frankfurt)", cat: "M&A" },
+    { kind: "KEY_PARTNERS", label: "DACH-Branchenverband Allianz", cat: "PARTNERSHIP" },
+    { kind: "REVENUE_STREAMS", label: "Usage-based AI-Inferenz-Pricing", cat: "PRICING" },
+  ];
+  for (const plan of expansionPlans) {
+    const mag = clamp(50 + visionary * 30 + (opp.warChest / 100) * 20, 40, 95);
+    let w = postureBoost(plan.cat);
+    if (opp.posture === "AGGRESSIVE" || opp.posture === "EXPANSIVE") w *= 1.4;
+    if (opp.posture === "OPPORTUNISTIC") w *= 1.25;
+    // War-chest gating for expensive ADDs
+    if (plan.cat === "M&A" || plan.cat === "GEO") {
+      w *= 0.4 + (opp.warChest / 100) * 1.3;
+    }
+    candidates.push({
+      title: `Eintritt: "${plan.label}"`,
+      description: `${opp.name} öffnet neuen ${humanBlockKind(plan.kind)}.`,
+      cost: clamp(50 + (mag - 50) * 0.6, 40, 90),
+      weight: w,
+      delta: {
+        layer: "BMC",
+        op: "ADD",
+        target: { kind: "BMC_BLOCK", blockKind: plan.kind },
+        newLabel: plan.label,
+        magnitude: mag,
+        description: `Neuer ${humanBlockKind(plan.kind)}: "${plan.label}".`,
+      },
+    });
+  }
+
+  // ---- 4. CAPABILITY moves ----
+  // Leverage their high-importance, high-level capabilities
+  for (const cap of oppTop.capabilities) {
+    if (cap.level >= 70 && cap.importance >= 70) {
+      const mag = clamp(40 + (cap.importance - 70) * 1.5, 35, 80);
+      const cat = catFromCapability(cap.dimension, "STRENGTHEN");
+      let w = postureBoost(cat) * 1.2;
+      if (cap.dimension === "TECH" && opp.innovationIndex > 60) w *= 1.3;
+      candidates.push({
+        title: `Hebel auf "${cap.label}" — Doppel-Investition`,
+        description: `Verstärkt vorhandene ${cap.dimension}-Stärke.`,
+        cost: clamp(40 + cap.level * 0.2, 30, 70),
+        weight: w,
+        delta: {
+          layer: "CAPABILITIES",
+          op: "STRENGTHEN",
+          target: { kind: "CAPABILITY", dimension: cap.dimension, capabilityId: cap.id },
+          magnitude: mag,
+          description: `Verstärkt ${cap.dimension}-Capability "${cap.label}" (+${Math.round(
+            mag * 0.5,
+          )} Level).`,
+        },
+      });
+    }
+  }
+
+  // Close low-level but high-importance capability gaps (asymmetric attack on our edge)
+  for (const cap of oppTop.capabilities) {
+    if (cap.level < 65 && cap.importance >= 70) {
+      const mag = clamp(50 + cap.importance * 0.3, 45, 90);
+      const cat = catFromCapability(cap.dimension, "STRENGTHEN");
+      let w = postureBoost(cat) * 1.35;
+      // Optimizers love closing process / ORG gaps
+      if (cap.dimension === "PROCESSES" || cap.dimension === "ORG") w *= 1 + optimizer * 0.5;
+      // Visionaries push TECH gaps
+      if (cap.dimension === "TECH") w *= 1 + visionary * 0.5;
+      candidates.push({
+        title: `Aufbau "${cap.label}" um Lücke zu schließen`,
+        description: `Adressiert gefährliche ${cap.dimension}-Lücke.`,
+        cost: clamp(55 + (90 - cap.level) * 0.3, 45, 85),
+        weight: w,
+        delta: {
+          layer: "CAPABILITIES",
+          op: "STRENGTHEN",
+          target: { kind: "CAPABILITY", dimension: cap.dimension, capabilityId: cap.id },
+          magnitude: mag,
+          description: `Schließt ${cap.dimension}-Lücke "${cap.label}" (+${Math.round(
+            mag * 0.5,
+          )} Level).`,
+        },
+      });
+    }
+  }
+
+  // ---- 5. ADD capabilities (especially in TECH for high-innovation) ----
+  if (opp.innovationIndex > 60) {
+    const mag = clamp(45 + opp.innovationIndex * 0.4, 50, 90);
+    candidates.push({
+      title: "Aufbau neuer TECH-Capability: ML-Inferenz-Pipeline",
+      description: "Anorganischer TECH-Ausbau, getrieben von Innovationsindex.",
+      cost: clamp(60 + visionary * 20, 55, 85),
+      weight: 1.0 + visionary * 0.6 + (opp.innovationIndex / 100) * 0.5,
+      delta: {
+        layer: "CAPABILITIES",
+        op: "ADD",
+        target: { kind: "CAPABILITY", dimension: "TECH" },
+        newLabel: "Proprietäre AI-Inferenz-Pipeline",
+        magnitude: mag,
+        description: "Neue TECH-Capability: Proprietäre AI-Inferenz-Pipeline.",
+      },
+    });
+  }
+
+  // ---- 6. VPC plays — collision on shared customer segments ----
+  // For each opponent VPC whose customerSegmentBlockId is shared with one of ours
+  // (or whose segment label matches), generate a VPC-item ADD targeting their
+  // gain-creators / pain-relievers (this is the HOTTEST attack on us).
+  const collisionSegments = sharedBlocks(oppTop.bmc, ourTop.bmc, "CUSTOMER_SEGMENTS");
+  for (const { theirs: theirSeg } of collisionSegments) {
+    const oppVpc = oppTop.vpcs.find((v) => v.customerSegmentBlockId === theirSeg.id);
+    if (!oppVpc) continue;
+    const mag = clamp(55 + visionary * 25, 50, 90);
+    let w = 1.6; // VPC attacks on shared segments are highly weighted
+    if (opp.posture === "AGGRESSIVE") w *= 1.4;
+    candidates.push({
+      title: `Pain-Reliever-Match auf "${theirSeg.label}"`,
+      description: `Neutralisiert unseren Edge im umkämpften Segment.`,
+      cost: clamp(50 + mag * 0.3, 45, 85),
+      weight: w,
+      delta: {
+        layer: "VPC",
+        op: "ADD",
+        target: {
+          kind: "VPC_ITEM",
+          vpcId: oppVpc.id,
+          side: "VALUE_MAP",
+          itemKind: "painRelievers",
+        },
+        newLabel: "EU-Datenresidenz mit Schrems-II-Compliance",
+        magnitude: mag,
+        description: `Fügt direkten Pain-Reliever in ihrem VPC für "${theirSeg.label}" hinzu — neutralisiert unseren Schrems-Vorteil.`,
+      },
+    });
+    candidates.push({
+      title: `Gain-Creator auf "${theirSeg.label}" — AI-Augmentation`,
+      description: `Erhöht Wechselattraktivität im Collision-Segment.`,
+      cost: clamp(45 + mag * 0.3, 40, 80),
+      weight: w * 0.9,
+      delta: {
+        layer: "VPC",
+        op: "ADD",
+        target: {
+          kind: "VPC_ITEM",
+          vpcId: oppVpc.id,
+          side: "VALUE_MAP",
+          itemKind: "gainCreators",
+        },
+        newLabel: "AI-Augmented Reg-Officer-Workflows",
+        magnitude: mag,
+        description: `Neuer Gain-Creator: AI-Augmentation für Compliance-Officer-Effizienz.`,
+      },
+    });
+  }
+
+  // ---- 7. M&A plays — gated by war chest, derived from KEY_RESOURCES ----
+  if (opp.warChest >= 50) {
+    const mag = clamp(60 + (opp.warChest / 100) * 30, 55, 95);
+    let w = postureBoost("M&A") * (0.4 + (opp.warChest / 100) * 1.2);
+    if (opp.posture === "OPPORTUNISTIC") w *= 1.5;
+    candidates.push({
+      title: "Tuck-in: Akquisition eines DACH-Nischenanbieters",
+      description: "Anorganische Konsolidierung im Zielsegment.",
+      cost: clamp(75 + (opp.warChest - 50) * 0.3, 60, 95),
+      weight: w,
+      delta: {
+        layer: "BMC",
+        op: "ADD",
+        target: { kind: "BMC_BLOCK", blockKind: "KEY_RESOURCES" },
+        newLabel: "Akquirierter DACH-Compliance-Spezialist",
+        magnitude: mag,
+        description:
+          "M&A: neuer Key-Resource-Block via Akquisition eines DACH-Spezialisten.",
+      },
+    });
+  }
+
+  return candidates;
+}
+
+// ---------- self response generator ----------
+
+function selfMoveCandidates(
+  opponentDelta: TopologyDelta,
+  own: OwnProfile,
+): CandidateTarget[] {
+  const ourTop = own.topology;
+  const candidates: CandidateTarget[] = [];
+  const tgt = opponentDelta.target;
+
+  // 1. If they hit BMC_BLOCK kind X — we STRENGTHEN our own block of same kind
+  if (tgt.kind === "BMC_BLOCK") {
+    const ourBlock = ourTop.bmc.blocks.find((b) => b.kind === tgt.blockKind);
+    if (ourBlock) {
+      candidates.push({
+        title: `Verteidigung unseres ${humanBlockKind(tgt.blockKind)}`,
+        description: `Direkte Verteidigung des korrespondierenden BMC-Blocks.`,
+        cost: 50,
+        weight: 1.5,
+        delta: {
+          layer: "BMC",
+          op: "STRENGTHEN",
+          target: { kind: "BMC_BLOCK", blockKind: tgt.blockKind, blockId: ourBlock.id },
+          magnitude: 60,
+          description: `Verstärkt unseren ${humanBlockKind(tgt.blockKind)}-Block "${ourBlock.label}".`,
+        },
+      });
+    }
+    // Also: complementary — ADD new VPC items to shore up
+    if (tgt.blockKind === "CUSTOMER_SEGMENTS" && ourTop.vpcs[0]) {
+      candidates.push({
+        title: "Vertical Lock-in Programm",
+        description: "Tiefer in unsere existierende Vertikale rein.",
+        cost: 40,
+        weight: 1.2,
+        delta: {
+          layer: "VPC",
+          op: "ADD",
+          target: {
+            kind: "VPC_ITEM",
+            vpcId: ourTop.vpcs[0].id,
+            side: "VALUE_MAP",
+            itemKind: "gainCreators",
+          },
+          newLabel: "Branchen-spezifische Compliance-Vorlagen",
+          magnitude: 65,
+          description: "Neuer Gain-Creator zur Vertiefung der Kundenbindung.",
+        },
+      });
+    }
+  }
+
+  // 2. If they hit CAPABILITY dimension D — we STRENGTHEN our capability in D
+  if (tgt.kind === "CAPABILITY") {
+    const ourCap = ourTop.capabilities.find((c) => c.dimension === tgt.dimension);
+    if (ourCap) {
+      candidates.push({
+        title: `Doppel-Down auf ${tgt.dimension}-Capability`,
+        description: `Behält Asymmetrie auf der ${tgt.dimension}-Achse.`,
+        cost: 55,
+        weight: 1.4,
+        delta: {
+          layer: "CAPABILITIES",
+          op: "STRENGTHEN",
+          target: { kind: "CAPABILITY", dimension: tgt.dimension, capabilityId: ourCap.id },
+          magnitude: 60,
+          description: `Verstärkt unsere ${tgt.dimension}-Capability "${ourCap.label}".`,
+        },
+      });
+    }
+  }
+
+  // 3. If they hit VPC — we ADD a counter VPC item
+  if (tgt.kind === "VPC_ITEM" && ourTop.vpcs[0]) {
+    candidates.push({
+      title: "Counter-Differenzierung im VPC",
+      description: "Neuer Differenzierungs-Hebel im umkämpften Segment.",
+      cost: 45,
+      weight: 1.3,
+      delta: {
+        layer: "VPC",
+        op: "ADD",
+        target: {
+          kind: "VPC_ITEM",
+          vpcId: ourTop.vpcs[0].id,
+          side: "VALUE_MAP",
+          itemKind: "painRelievers",
+        },
+        newLabel: "BaFin-Attest-Service auf Knopfdruck",
+        magnitude: 70,
+        description: "Neuer Pain-Reliever, der unseren regulatorischen Edge unterstreicht.",
+      },
+    });
+  }
+
+  // Generic always-available defensive moves
+  candidates.push({
+    title: "Retention-Pakete für Top-50-Accounts",
+    description: "Schützt Bestandsumsatz vor Konkurrenz-Druck.",
+    cost: 35,
+    weight: 0.9,
+    delta: {
+      layer: "BMC",
+      op: "STRENGTHEN",
+      target: { kind: "BMC_BLOCK", blockKind: "CUSTOMER_RELATIONSHIPS" },
+      magnitude: 55,
+      description: "Verstärkt Customer-Relationships durch dedizierte Retention-Investments.",
+    },
   });
+
+  candidates.push({
+    title: "Roadmap-Acceleration auf Differenzierungs-Capability",
+    description: "Beschleunigt unsere asymmetrische Stärke.",
+    cost: 50,
+    weight: 1.0,
+    delta: {
+      layer: "CAPABILITIES",
+      op: "STRENGTHEN",
+      target: { kind: "CAPABILITY", dimension: "TECH" },
+      magnitude: 55,
+      description: "Beschleunigung der TECH-Roadmap auf der differenzierenden Capability.",
+    },
+  });
+
+  return candidates;
 }
 
-function selectMove(
-  cat: MoveCategory,
-  p: CompetitorProfile,
-  rand: () => number,
-  excludeTitles: Set<string>,
-): { title: string; threat: number; cost: number } {
-  const pool = MOVE_LIBRARY[cat].filter((m) => !excludeTitles.has(m.title));
-  const arr = pool.length ? pool : MOVE_LIBRARY[cat];
-  // Slight tilt: aggressive opponents pick higher-threat moves
-  const aggressionBoost = p.posture === "AGGRESSIVE" ? 1 : p.posture === "DEFENSIVE" ? -1 : 0;
-  const weighted = arr.map((m) => ({
-    value: m,
-    weight: 1 + (aggressionBoost * (m.threat - 50)) / 100,
-  }));
-  return pickWeighted(weighted, rand());
+// ---------- threat computation from deltas ----------
+
+/**
+ * Compute opponent-move threat (0..100) from the delta(s) against OUR topology.
+ * Rules (per spec):
+ *   - delta on a BMC block kind WE also have:                            mag * 0.4
+ *   - delta on a VPC item where the parent segment is shared with us:    mag * 0.6
+ *   - delta on a capability dimension where our level is LOW + importance HIGH: mag * 0.5
+ * Sum, clamp to 0..100.
+ */
+function threatFromDeltas(deltas: TopologyDelta[], own: OwnProfile): number {
+  const ourTop = own.topology;
+  let t = 0;
+  for (const d of deltas) {
+    const mag = clamp(d.magnitude, 0, 100);
+    const tgt = d.target;
+
+    if (tgt.kind === "BMC_BLOCK") {
+      const haveSameKind = ourTop.bmc.blocks.some((b) => b.kind === tgt.blockKind);
+      if (haveSameKind) t += mag * 0.4;
+    }
+
+    if (tgt.kind === "VPC_ITEM") {
+      // VPC items: hot if we share that customer segment.
+      // We use the VPC's parent segment block id (if present) or, failing that,
+      // assume overlap is implied (since the opponent picked it via collision).
+      t += mag * 0.6;
+    }
+
+    if (tgt.kind === "CAPABILITY") {
+      // Asymmetric attack on our weak spot?
+      const ourCaps = ourTop.capabilities.filter((c) => c.dimension === tgt.dimension);
+      const avgLevel =
+        ourCaps.length === 0
+          ? 30
+          : ourCaps.reduce((s, c) => s + c.level, 0) / ourCaps.length;
+      const maxImp =
+        ourCaps.length === 0
+          ? 50
+          : Math.max(...ourCaps.map((c) => c.importance));
+      if (avgLevel < 65 && maxImp >= 65) t += mag * 0.5;
+      else t += mag * 0.25; // still some threat if they're investing here
+    }
+  }
+  return Math.round(clamp(t, 0, 100));
 }
 
-function rationaleFor(cat: MoveCategory, p: CompetitorProfile, own: OwnProfile): string {
-  const lever =
-    cat === "PRICING"    ? "Margenarchitektur und Preisanker" :
-    cat === "PRODUCT"    ? "Differenzierungs-Roadmap" :
-    cat === "M&A"        ? "anorganische Konsolidierung" :
-    cat === "TALENT"     ? "Humankapital-Akkumulation" :
-    cat === "GEO"        ? "geografische Reichweite" :
-    cat === "CHANNEL"    ? "Distributionsökonomie" :
-    cat === "BRAND"      ? "Wahrnehmungsdominanz" :
-    cat === "REGULATORY" ? "regulatorischer Moat" :
-    cat === "CAPITAL"    ? "Kapitalsignale an den Markt" :
-                           "Ökosystem-Hebel";
-  return `${POSTURE_RATIONALE[p.posture]} Zug zielt auf ${lever} als Antwort auf "${own.openingMove.slice(0, 80)}".`;
+// ---------- helpers ----------
+
+const POSTURE_WEIGHTS: Record<Posture, Partial<Record<MoveCategory, number>>> = {
+  AGGRESSIVE:    { PRICING: 1.5, "M&A": 1.4, BRAND: 1.2, GEO: 1.3, TALENT: 1.1, PRODUCT: 1.1, CHANNEL: 1.0, REGULATORY: 0.7, CAPITAL: 1.0, PARTNERSHIP: 0.9 },
+  EXPANSIVE:     { GEO: 1.6, PARTNERSHIP: 1.4, CHANNEL: 1.3, "M&A": 1.2, PRODUCT: 1.1, BRAND: 1.0, TALENT: 1.0, PRICING: 0.9, CAPITAL: 1.1, REGULATORY: 0.8 },
+  DEFENSIVE:     { REGULATORY: 1.5, BRAND: 1.3, TALENT: 1.2, PRODUCT: 1.1, CAPITAL: 1.2, CHANNEL: 1.0, PARTNERSHIP: 1.0, PRICING: 0.8, GEO: 0.7, "M&A": 0.8 },
+  OPPORTUNISTIC: { "M&A": 1.5, CAPITAL: 1.4, PARTNERSHIP: 1.3, TALENT: 1.2, PRODUCT: 1.0, PRICING: 1.1, BRAND: 1.0, GEO: 1.1, CHANNEL: 1.0, REGULATORY: 0.9 },
+  CONSERVATIVE:  { CAPITAL: 1.4, PRODUCT: 1.2, REGULATORY: 1.2, BRAND: 1.1, CHANNEL: 1.0, TALENT: 1.0, PARTNERSHIP: 1.0, PRICING: 0.8, GEO: 0.7, "M&A": 0.6 },
+};
+
+function catFromBlock(kind: BMCBlockKind, _op: string): MoveCategory {
+  switch (kind) {
+    case "CUSTOMER_SEGMENTS": return "GEO";
+    case "VALUE_PROPOSITIONS": return "PRODUCT";
+    case "CHANNELS": return "CHANNEL";
+    case "CUSTOMER_RELATIONSHIPS": return "BRAND";
+    case "REVENUE_STREAMS": return "PRICING";
+    case "KEY_RESOURCES": return "M&A";
+    case "KEY_ACTIVITIES": return "PRODUCT";
+    case "KEY_PARTNERS": return "PARTNERSHIP";
+    case "COST_STRUCTURE": return "CAPITAL";
+  }
+}
+
+function catFromCapability(dim: CapabilityDimension, _op: string): MoveCategory {
+  switch (dim) {
+    case "PEOPLE": return "TALENT";
+    case "TECH": return "PRODUCT";
+    case "ORG": return "CAPITAL";
+    case "PROCESSES": return "REGULATORY";
+  }
+}
+
+function humanBlockKind(k: BMCBlockKind): string {
+  return k.replace(/_/g, " ").toLowerCase();
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function effectiveCompetitor(c: CompetitorProfile, s?: Scenario): CompetitorProfile {
+  if (!s?.modifiers) return c;
+  return { ...c, ...s.modifiers };
 }
 
 // ---------- tree generation ----------
+
 export function simulate(
   competitor: CompetitorProfile,
   own: OwnProfile,
@@ -365,6 +737,10 @@ export function simulate(
 ): Simulation {
   const seedStr = opts?.seed ?? `${competitor.name}|${own.name}|${own.openingMove}|${own.horizonRounds}|${own.branchingFactor}`;
   const rand = rng(hashString(seedStr));
+  // PRNG-handle reserved for future use (probabilistic shaping outside the
+  // scenario seed). Currently each scenario builds its own deterministic
+  // sub-stream from the seed string + scenario id.
+  void rand;
 
   const nodes: Record<string, MoveNode> = {};
   const rootIds: string[] = [];
@@ -400,51 +776,87 @@ export function simulate(
       const next: string[] = [];
       for (const parentId of frontier) {
         const parent = nodes[parentId];
-        const isOpponent = parent.actor === "SELF"; // alternate
-        const actor: "OPPONENT" | "SELF" = isOpponent ? "OPPONENT" : "SELF";
+        const actor: "OPPONENT" | "SELF" =
+          parent.actor === "SELF" ? "OPPONENT" : "SELF";
 
-        // Branching factor scales down with depth to keep tree readable
-        const branchAtRound = Math.max(1, Math.round(own.branchingFactor * (1 - (round - 1) / Math.max(1, own.horizonRounds * 1.6))));
+        const branchAtRound = Math.max(
+          1,
+          Math.round(
+            own.branchingFactor *
+              (1 - (round - 1) / Math.max(1, own.horizonRounds * 1.6)),
+          ),
+        );
 
-        // Sample categories without replacement
-        const used = new Set<MoveCategory>();
-        const usedTitles = new Set<string>();
-        const rawProbs: number[] = [];
-        const childPayloads: { cat: MoveCategory; move: ReturnType<typeof selectMove> }[] = [];
-
-        for (let b = 0; b < branchAtRound; b++) {
-          const weights = categoryWeights(competitor, scen).filter((w) => !used.has(w.value));
-          if (weights.length === 0) break;
-          const cat = pickWeighted(weights, r());
-          used.add(cat);
-          const move = selectMove(cat, competitor, r, usedTitles);
-          usedTitles.add(move.title);
-          // Probability shaped by category weight + posture confidence
-          const wEntry = weights.find((w) => w.value === cat)!;
-          const p = Math.max(0.05, wEntry.weight);
-          rawProbs.push(p);
-          childPayloads.push({ cat, move });
+        // Pool of plans for this actor
+        let pool: CandidateTarget[];
+        if (actor === "OPPONENT") {
+          pool = opponentMoveCandidates(competitor, own, scen);
+        } else {
+          // SELF: respond to the PARENT's (opponent) delta.
+          const oppDelta = parent.deltas[0];
+          if (oppDelta) {
+            pool = selfMoveCandidates(oppDelta, own);
+          } else {
+            pool = selfMoveCandidates(
+              {
+                layer: "BMC",
+                op: "STRENGTHEN",
+                target: { kind: "BMC_BLOCK", blockKind: "VALUE_PROPOSITIONS" },
+                magnitude: 50,
+                description: "fallback",
+              },
+              own,
+            );
+          }
         }
+
+        // Sample without replacement (by title) up to branchAtRound
+        const used = new Set<string>();
+        const chosen: CandidateTarget[] = [];
+        const rawProbs: number[] = [];
+        for (let b = 0; b < branchAtRound; b++) {
+          const available = pool.filter((p) => !used.has(p.title));
+          if (available.length === 0) break;
+          const pick = pickWeighted(
+            available.map((p) => ({ value: p, weight: p.weight })),
+            r(),
+          );
+          used.add(pick.title);
+          chosen.push(pick);
+          rawProbs.push(Math.max(0.05, pick.weight));
+        }
+
         const total = rawProbs.reduce((s, v) => s + v, 0) || 1;
-        childPayloads.forEach((pl, idx) => {
+        chosen.forEach((pl, idx) => {
           const prob = rawProbs[idx] / total;
           const id = nextId();
+          const deltas: TopologyDelta[] = [pl.delta];
+          const category = deriveCategoryFromDeltas(deltas);
+          const oppThreat =
+            actor === "OPPONENT" ? threatFromDeltas(deltas, own) : 0;
+          // SELF threat = how much we reduce parent opponent-threat — we model
+          // this as (100 - parent.threat) per spec.
+          const selfThreat =
+            actor === "SELF" ? Math.max(0, 100 - parent.threat) : 0;
+
           const node: MoveNode = {
             id,
             parentId,
             round,
             actor,
-            category: pl.cat,
-            title: pl.move.title,
-            rationale: actor === "OPPONENT"
-              ? rationaleFor(pl.cat, competitor, own)
-              : `Antwortzug. Adressiert ${pl.cat.toLowerCase()}-Druck des Gegners.`,
+            category,
+            title: pl.title,
+            rationale:
+              actor === "OPPONENT"
+                ? `${POSTURE_RATIONALE[effectiveCompetitor(competitor, scen).posture]} ${pl.description}`
+                : `Antwortzug. ${pl.description}`,
             probability: prob,
             cumulativeProbability: parent.cumulativeProbability * prob,
-            threat: actor === "OPPONENT" ? pl.move.threat : Math.max(0, 100 - pl.move.threat),
-            cost: pl.move.cost,
-            deltas: [],
-            counters: actor === "OPPONENT" ? COUNTER_LIBRARY[pl.cat].slice(0, 3) : [],
+            threat: actor === "OPPONENT" ? oppThreat : selfThreat,
+            cost: pl.cost,
+            deltas,
+            counters:
+              actor === "OPPONENT" ? COUNTER_LIBRARY[category].slice(0, 3) : [],
             children: [],
           };
           if (node.actor === "OPPONENT") {
@@ -477,6 +889,7 @@ export function simulate(
 }
 
 // ---------- aggregate analytics ----------
+
 export interface PathSummary {
   ids: string[];
   cumulativeProbability: number;
@@ -508,7 +921,6 @@ export function topPaths(sim: Simulation, k = 5): PathSummary[] {
     walk(rid, [], 0, scen?.label ?? `Szenario ${i + 1}`);
   });
 
-  // Composite score: probability * threat
   return paths
     .sort((a, b) => b.cumulativeProbability * b.totalThreat - a.cumulativeProbability * a.totalThreat)
     .slice(0, k);
@@ -528,7 +940,6 @@ export function categoryHeatmap(sim: Simulation): { category: MoveCategory; weig
 }
 
 export function threatIndex(sim: Simulation): number {
-  // 0..100 composite read: expected threat across all opponent nodes.
   let s = 0;
   let n = 0;
   for (const id in sim.nodes) {
