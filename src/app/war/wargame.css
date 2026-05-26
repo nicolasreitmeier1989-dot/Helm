@@ -1,66 +1,27 @@
-/* WFC War Game animations */
+/* WFC War Game animations (v4) */
 
 @keyframes fadeInScale {
-  0% {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes moveCardEnterL {
-  0% {
-    opacity: 0;
-    transform: translateX(-110vw) rotate(-8deg) scale(0.9);
-  }
-  55% {
-    opacity: 1;
-    transform: translateX(0) rotate(0deg) scale(1.05);
-  }
-  60% {
-    transform: translateX(8px) rotate(1deg) scale(1.02);
-  }
-  65% {
-    transform: translateX(-4px) rotate(-0.5deg) scale(1.04);
-  }
-  75% {
-    transform: translateX(0) rotate(0) scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) rotate(0) scale(1);
-  }
+  0%   { opacity: 0; transform: translateX(-110vw) rotate(-8deg) scale(0.9); }
+  55%  { opacity: 1; transform: translateX(0) rotate(0deg) scale(1.05); }
+  60%  { transform: translateX(8px) rotate(1deg) scale(1.02); }
+  65%  { transform: translateX(-4px) rotate(-0.5deg) scale(1.04); }
+  75%  { transform: translateX(0) rotate(0) scale(1); }
+  100% { opacity: 1; transform: translateX(0) rotate(0) scale(1); }
 }
 
 @keyframes moveCardEnterR {
-  0% {
-    opacity: 0;
-    transform: translateX(110vw) rotate(8deg) scale(0.9);
-  }
-  55% {
-    opacity: 1;
-    transform: translateX(0) rotate(0deg) scale(1.05);
-  }
-  60% {
-    transform: translateX(-8px) rotate(-1deg) scale(1.02);
-  }
-  65% {
-    transform: translateX(4px) rotate(0.5deg) scale(1.04);
-  }
-  75% {
-    transform: translateX(0) rotate(0) scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) rotate(0) scale(1);
-  }
+  0%   { opacity: 0; transform: translateX(110vw) rotate(8deg) scale(0.9); }
+  55%  { opacity: 1; transform: translateX(0) rotate(0deg) scale(1.05); }
+  60%  { transform: translateX(-8px) rotate(-1deg) scale(1.02); }
+  65%  { transform: translateX(4px) rotate(0.5deg) scale(1.04); }
+  75%  { transform: translateX(0) rotate(0) scale(1); }
+  100% { opacity: 1; transform: translateX(0) rotate(0) scale(1); }
 }
 
 @keyframes screenShake {
@@ -76,11 +37,36 @@
   90% { transform: translate(-1px, -1px); }
 }
 
-@keyframes glitchPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; transform: translateX(1px); }
+/* Idle "breathing" for the player sigil while choosing — calm, slow */
+@keyframes playerIdle {
+  0%, 100% { transform: scale(1) translateY(0) rotate(0deg); }
+  50%      { transform: scale(1.04) translateY(-4px) rotate(-0.4deg); }
+}
+
+/* Idle "menace" for the competitor sigil — slightly faster, off-rhythm */
+@keyframes competitorIdle {
+  0%, 100% { transform: scale(1) translateY(0) rotate(0deg); }
+  25%      { transform: scale(1.06) translateY(-3px) rotate(-0.6deg); }
+  60%      { transform: scale(1.03) translateY(3px) rotate(0.5deg); }
+}
+
+.animate-playerIdle {
+  animation: playerIdle 3.4s ease-in-out infinite;
+}
+
+.animate-competitorIdle {
+  animation: competitorIdle 2.6s ease-in-out infinite;
 }
 
 .animate-screenShake {
   animation: screenShake 0.35s ease-in-out;
+}
+
+/* Line-clamp utility (project uses Tailwind 3.4; line-clamp is built-in but
+ * we keep this fallback in case some build configs miss the plugin). */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
