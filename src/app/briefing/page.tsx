@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadBriefing } from "@/lib/briefing";
+import { loadBriefingPayload } from "@/lib/briefing";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
 import {
   bmcOverlapScore,
@@ -9,12 +9,20 @@ import {
   labelsMatch,
 } from "@/lib/topology";
 import type { Simulation, TopologyDelta } from "@/lib/types";
+import type { WFCContext } from "@/lib/store";
+import { AI_NATIVE_PATTERNS } from "@/lib/aiNativePatterns";
+import { DEFENDER_OPTIONS } from "@/lib/defenderOptions";
 
 export default function BriefingPage() {
   const [sim, setSim] = useState<Simulation | null>(null);
+  const [wfc, setWfc] = useState<WFCContext | undefined>(undefined);
 
   useEffect(() => {
-    setSim(loadBriefing());
+    const p = loadBriefingPayload();
+    if (p) {
+      setSim(p.sim);
+      setWfc(p.wfc);
+    }
   }, []);
 
   if (!sim) {
@@ -205,6 +213,9 @@ export default function BriefingPage() {
               </div>
             )}
           </section>
+
+          {/* AI-NATIVE THREAT ASSESSMENT — only rendered for WFC projects */}
+          {wfc && <AINativeThreatAssessment sim={sim} wfc={wfc} />}
 
           {/* EMERGING CAPABILITY COLLISIONS — set-layer race-on signals */}
           <section className="mb-6">
@@ -506,6 +517,168 @@ function collisionCaption(ours: string, theirs: string): string {
     return "Wir früh, sie reif — wir greifen die etablierte Position an.";
   }
   return "Beide Seiten halten Position im Set; das Tempo bestimmt das Spiel.";
+}
+
+function AINativeThreatAssessment({
+  sim,
+  wfc,
+}: {
+  sim: Simulation;
+  wfc: WFCContext;
+}) {
+  const pattern = AI_NATIVE_PATTERNS.find((p) => p.id === wfc.patternId);
+  const stance = DEFENDER_OPTIONS.find((o) => o.id === wfc.stanceId);
+  if (!pattern || !stance) return null;
+
+  // The disruption scenario was seeded with id "s-ai-native". Find the root
+  // node for that scenario and bubble up its top trajectory probability.
+  const disruptionRootId = sim.rootIds.find((id) =>
+    sim.nodes[id]?.title.toLowerCase().includes("ai-native")
+      ? true
+      : sim.nodes[id]?.rationale?.toLowerCase().includes("ai-native"),
+  );
+  const allOppNodes = Object.values(sim.nodes).filter(
+    (n) => n.actor === "OPPONENT",
+  );
+  const disruptionPaths = disruptionRootId
+    ? allOppNodes.filter((n) => bubbleHasRoot(sim, n.id, disruptionRootId))
+    : allOppNodes;
+  const topP = disruptionPaths.reduce(
+    (max, n) => Math.max(max, n.cumulativeProbability),
+    0,
+  );
+  const pPct = Math.round(topP * 100);
+  const verdict =
+    pPct > 30 ? "CONFIRMED FEAR" : pPct >= 10 ? "POSSIBLE" : "PARANOID";
+  const verdictTone =
+    verdict === "CONFIRMED FEAR"
+      ? "bg-black text-white"
+      : verdict === "POSSIBLE"
+        ? "bg-neutral-200 text-black"
+        : "bg-white text-black border border-black";
+  const topThreat = disruptionPaths.reduce(
+    (max, n) => Math.max(max, n.threat),
+    0,
+  );
+  const exposedSets = sim.own.topology.capabilitySets.filter((s) =>
+    pattern.exposedDimensions.includes(s.dimension),
+  );
+
+  return (
+    <section className="mb-6 border-2 border-black p-4">
+      <h2 className="font-mono text-[10px] tracking-widest text-neutral-500 mb-2">
+        AI-NATIVE THREAT ASSESSMENT
+      </h2>
+
+      <p className="text-[12.5px] leading-relaxed mb-3">
+        Pattern: <strong>{pattern.name}</strong> — {pattern.mechanism}.
+      </p>
+
+      <div className="flex items-center gap-3 mb-3">
+        <span
+          className={`font-mono text-[14px] tracking-widest px-3 py-1.5 ${verdictTone}`}
+        >
+          ⌖ {verdict}
+        </span>
+        <span className="font-mono text-[11px] text-neutral-700">
+          P = {pPct}% · THREAT {Math.round(topThreat)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="border border-neutral-400 p-2">
+          <div className="font-mono text-[9px] tracking-widest text-neutral-500 mb-1">
+            TIME TO IMPACT
+          </div>
+          <div className="text-[12.5px] leading-snug">
+            <strong>{pattern.timeToImpact}</strong> — act within the first
+            third of the window to remain defensible.
+          </div>
+        </div>
+        <div className="border border-neutral-400 p-2">
+          <div className="font-mono text-[9px] tracking-widest text-neutral-500 mb-1">
+            EXPOSED CAPABILITY SETS
+          </div>
+          {exposedSets.length === 0 ? (
+            <div className="text-[12px] italic text-neutral-600">
+              None mapped yet — fill in capability sets to sharpen this view.
+            </div>
+          ) : (
+            <ul className="text-[12px] leading-snug space-y-0.5">
+              {exposedSets.slice(0, 5).map((s) => (
+                <li key={s.id}>
+                  <strong>{s.name}</strong>{" "}
+                  <span className="font-mono text-[10px] text-neutral-600">
+                    · {s.lifecycle}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="border border-neutral-400 p-2 mb-3">
+        <div className="font-mono text-[9px] tracking-widest text-neutral-500 mb-1">
+          RECOMMENDED DEFENSE
+        </div>
+        <div className="text-[12.5px] leading-relaxed">
+          <strong>{stance.name}.</strong> {stance.whenItFits} The kernel
+          opposite implements this stance.
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-300 pt-2">
+        <div className="font-mono text-[9px] tracking-widest text-neutral-500 mb-1">
+          THE FEAR, IN YOUR WORDS
+        </div>
+        <div className="text-[11.5px] italic leading-relaxed space-y-1.5 text-neutral-700">
+          {wfc.fearParagraphs.workflow && (
+            <div>
+              <span className="font-mono text-[9px] not-italic tracking-widest text-neutral-500 mr-1">
+                WORKFLOW:
+              </span>
+              {wfc.fearParagraphs.workflow}
+            </div>
+          )}
+          {wfc.fearParagraphs.pricing && (
+            <div>
+              <span className="font-mono text-[9px] not-italic tracking-widest text-neutral-500 mr-1">
+                PRICING:
+              </span>
+              {wfc.fearParagraphs.pricing}
+            </div>
+          )}
+          {wfc.fearParagraphs.flywheel && (
+            <div>
+              <span className="font-mono text-[9px] not-italic tracking-widest text-neutral-500 mr-1">
+                FLYWHEEL:
+              </span>
+              {wfc.fearParagraphs.flywheel}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Walks parent pointers; returns true if `nodeId`'s root in the sim's tree
+// equals `rootId`. Used so AINativeThreatAssessment can scope its
+// probability/threat aggregation to the disruption scenario subtree.
+function bubbleHasRoot(
+  sim: Simulation,
+  nodeId: string,
+  rootId: string,
+): boolean {
+  let cur: string | null = nodeId;
+  while (cur !== null) {
+    if (cur === rootId) return true;
+    const here: import("@/lib/types").MoveNode | undefined = sim.nodes[cur];
+    if (!here) return false;
+    cur = here.parentId;
+  }
+  return false;
 }
 
 function humanTarget(d: TopologyDelta): string {
