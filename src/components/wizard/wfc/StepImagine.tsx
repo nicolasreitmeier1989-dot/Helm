@@ -1,12 +1,20 @@
 "use client";
 
-// HELM — WFC wizard step 1: Imagine the fear (Phase 4.5).
+// HELM — WFC wizard step 1: Imagine the fear (Phase 4.5, extended 5Y.2).
 //
 // Three textareas that surface the user's hidden moat assumptions. The
 // answers seed the rest of the WFC flow: the chosen pattern + the fear
 // paragraphs are passed to the optional AI-Assist on step 2 to sharpen
 // the auto-generated competitor template into something specific to the
 // user's industry.
+//
+// Phase 5Y.2: optional source-import affordance — paste a URL or any raw
+// text (press release, earnings call, Wikipedia entry) and Claude turns
+// it into a real CompetitorProfile that bypasses the pattern-template
+// flow. Useful when the WFC competitor already exists in the market.
+
+import { AIAssistButton } from "@/components/wizard/AIAssistButton";
+import type { CompetitorProfile } from "@/lib/types";
 
 export interface FearParagraphs {
   workflow: string;
@@ -17,15 +25,45 @@ export interface FearParagraphs {
 export function StepImagine({
   value,
   onChange,
+  onImportCompetitor,
 }: {
   value: FearParagraphs;
   onChange: (v: FearParagraphs) => void;
+  /** Optional: when present, the step exposes an "import from URL / text"
+   *  affordance that resolves to a full CompetitorProfile and hands it up. */
+  onImportCompetitor?: (c: CompetitorProfile) => void;
 }) {
   const set = <K extends keyof FearParagraphs>(k: K, v: string) =>
     onChange({ ...value, [k]: v });
 
   return (
     <div className="space-y-8">
+      {onImportCompetitor && (
+        <div className="border border-ink-300/60 bg-ink-50 px-4 py-3 flex items-start justify-between gap-4">
+          <div>
+            <div className="font-mono text-[10px] tracking-widest text-ink-500 mb-1">
+              ALREADY EXISTS? // IMPORT
+            </div>
+            <p className="text-[12.5px] text-ink-700 leading-relaxed max-w-md">
+              If your AI-native competitor is already in the market, skip the
+              imagination exercise and paste their URL or any source text —
+              Claude will infer the topology directly.
+            </p>
+          </div>
+          <AIAssistButton
+            kind="COMPETITOR_BASIC"
+            label="✨ IMPORT FROM URL OR TEXT"
+            hint="Import from URL or text"
+            prompt="Paste a competitor's about page, press release, earnings transcript — anything."
+            supportsSourceImport
+            onResult={(data) => {
+              const ext = data.competitor as CompetitorProfile | undefined;
+              if (ext) onImportCompetitor(ext);
+            }}
+          />
+        </div>
+      )}
+
       <Fear
         kicker="Q1 // WORKFLOW"
         question="Which part of your workflow do they automate first?"

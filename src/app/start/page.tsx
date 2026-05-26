@@ -159,7 +159,13 @@ function StartPage() {
       title: "Imagine the AI-native team that would kill your business.",
       subtitle:
         "It doesn't have to exist yet. Describe the one you'd most fear.",
-      render: () => <StepImagine value={fears} onChange={setFears} />,
+      render: () => (
+        <StepImagine
+          value={fears}
+          onChange={setFears}
+          onImportCompetitor={(c) => setCompetitor(c)}
+        />
+      ),
     },
     {
       key: "pattern",

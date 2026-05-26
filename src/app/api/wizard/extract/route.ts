@@ -12,6 +12,8 @@ import {
   extractBMC,
   extractCapabilities,
   extractCompetitorBasic,
+  extractCompetitorFromText,
+  extractCompetitorFromURL,
   extractVPC,
   isExtractorConfigured,
   type ExtractKind,
@@ -24,6 +26,8 @@ export const maxDuration = 120;
 interface Body {
   kind: ExtractKind;
   description: string;
+  /** COMPETITOR_URL only — target URL */
+  url?: string;
   context?: Record<string, unknown>;
 }
 
@@ -45,9 +49,15 @@ export async function POST(req: NextRequest) {
   if (!body?.kind) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
-  // AI_NATIVE_COMPETITOR drives off `context`; all other kinds require a
-  // description paragraph from the AIAssistButton textarea.
-  if (
+  // Per-kind input requirements:
+  //  - AI_NATIVE_COMPETITOR → driven by `context` (no description needed)
+  //  - COMPETITOR_URL       → requires `url`
+  //  - all others           → require a `description` paragraph
+  if (body.kind === "COMPETITOR_URL") {
+    if (!body.url || typeof body.url !== "string" || body.url.length < 8) {
+      return NextResponse.json({ error: "missing_url" }, { status: 400 });
+    }
+  } else if (
     body.kind !== "AI_NATIVE_COMPETITOR" &&
     (!body.description || body.description.trim().length < 8)
   ) {
@@ -89,6 +99,22 @@ export async function POST(req: NextRequest) {
         const competitor = await extractCompetitorBasic(
           body.description,
           ctx,
+        );
+        return NextResponse.json({ ok: true, competitor });
+      }
+      case "COMPETITOR_URL": {
+        const ctx = (body.context ?? {}) as { hint?: string };
+        const competitor = await extractCompetitorFromURL(
+          body.url ?? "",
+          ctx.hint,
+        );
+        return NextResponse.json({ ok: true, competitor });
+      }
+      case "COMPETITOR_TEXT": {
+        const ctx = (body.context ?? {}) as { hint?: string };
+        const competitor = await extractCompetitorFromText(
+          body.description,
+          ctx.hint,
         );
         return NextResponse.json({ ok: true, competitor });
       }

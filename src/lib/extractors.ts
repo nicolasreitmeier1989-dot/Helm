@@ -25,7 +25,9 @@ export type ExtractKind =
   | "VPC"
   | "CAPABILITIES"
   | "COMPETITOR_BASIC"
-  | "AI_NATIVE_COMPETITOR";
+  | "AI_NATIVE_COMPETITOR"
+  | "COMPETITOR_URL"
+  | "COMPETITOR_TEXT";
 
 export interface ExtractRequest {
   kind: ExtractKind;
@@ -924,6 +926,166 @@ export async function extractAINativeCompetitor(
     recentSignals: raw.recentSignals.slice(0, 6),
     topology,
   };
+}
+
+// ---------- COMPETITOR_URL / COMPETITOR_TEXT extractors (Phase 5Y.2) ----------
+//
+// Topology-aware extraction from a competitor URL or any raw text (press
+// release, earnings transcript, Wikipedia entry, etc.). Both flows share
+// the same Claude call and schema; URL extractor adds a fetch step.
+// Claude is instructed to be inferred-only and to flag uncertainty in the
+// `recentSignals` field rather than fabricate specific facts.
+
+const COMP_FROM_SOURCE_SYSTEM = `You are extracting a competitor profile from a raw source text supplied below.
+
+Output a CompetitorProfile (name, industry, posture, war-chest signal, innovation index, brand power,
+recent signals, and three-layer topology: capability sets, BMC blocks, 1–2 VPCs) tied to that competitor.
+
+Be concrete but inferred-only: never fabricate specific factual claims (revenue figures, named
+executives, real customer logos) you cannot read in the source text. When in doubt, mark
+uncertainty in the recentSignals as "[uncertain] ..." or note it explicitly in a capability set's
+description. Capability set lifecycles must reflect what the text actually says: if the text
+mentions AI heavily, include an "AI-Native Operations" set with lifecycle EMERGING (era 2024).
+If the text describes a legacy on-premise stack, mark its capability sets DECLINING or MATURE.
+
+Use the user's language (English in → English out, German in → German out).
+Be conservative on warChest / innovationIndex / brandPower (0–100) when the source is thin.`;
+
+// Re-use the COMP_SCHEMA (same shape as extractCompetitorBasic — same return type).
+
+export interface CompetitorSourceContext {
+  /** Optional hint from the user, e.g. "This is their investor-relations page" */
+  hint?: string;
+  /** Optional source URL — included in the user payload so the model knows the provenance */
+  sourceUrl?: string;
+}
+
+async function extractCompetitorFromSource(
+  rawText: string,
+  ctx: CompetitorSourceContext,
+): Promise<CompetitorProfile> {
+  const trimmed = rawText.slice(0, 15_000);
+  const userPayload = JSON.stringify({
+    hint: ctx.hint ?? "",
+    sourceUrl: ctx.sourceUrl ?? "",
+    sourceText: trimmed,
+  });
+
+  const raw = (await callClaude({
+    systemPrompt: COMP_FROM_SOURCE_SYSTEM,
+    schema: COMP_SCHEMA as unknown as Record<string, unknown>,
+    schemaName: "helm_competitor_from_source_extract",
+    userPayload,
+  })) as CompRaw;
+
+  // Same wiring as extractCompetitorBasic: temp ids → real ids.
+  const bmcIdMap: Record<string, string> = {};
+  const bmcBlocks: BMCBlock[] = raw.bmc.map((b) => {
+    const id = uid("bmc");
+    bmcIdMap[b.temp_id] = id;
+    return {
+      id,
+      kind: b.kind,
+      label: b.label,
+      strength: clamp(b.strength, 0, 100),
+    };
+  });
+
+  const vpcs: ValuePropositionCanvas[] = raw.vpcs
+    .map((v) => {
+      const segId = bmcIdMap[v.customer_segment_temp_id];
+      if (!segId) return null;
+      const toItems = (labels: string[]): VPCItem[] =>
+        labels.map((l) => ({ id: uid("vi"), label: l, weight: 60 }));
+      return {
+        id: uid("vpc"),
+        customerSegmentBlockId: segId,
+        customerProfile: {
+          jobs: toItems(v.jobs),
+          pains: toItems(v.pains),
+          gains: toItems(v.gains),
+        },
+        valueMap: {
+          productsServices: toItems(v.productsServices),
+          painRelievers: toItems(v.painRelievers),
+          gainCreators: toItems(v.gainCreators),
+        },
+      } satisfies ValuePropositionCanvas;
+    })
+    .filter((v): v is ValuePropositionCanvas => v !== null);
+
+  const sets: CapabilitySet[] = [];
+  const caps: Capability[] = [];
+  for (const s of raw.capabilitySets) {
+    const setId = uid("cs");
+    sets.push({
+      id: setId,
+      name: s.name,
+      dimension: s.dimension,
+      era: s.era,
+      lifecycle: s.lifecycle,
+      source: "SIGNAL_DERIVED",
+    });
+    for (const c of s.capabilities) {
+      caps.push({
+        id: uid("cap"),
+        setId,
+        label: c.label,
+        level: clamp(c.level, 0, 100),
+        importance: clamp(c.importance, 0, 100),
+      });
+    }
+  }
+
+  const topology: StrategicTopology = {
+    capabilitySets: sets,
+    capabilities: caps,
+    bmc: { blocks: bmcBlocks },
+    vpcs,
+  };
+
+  // Recent signals: prefix with the source URL if present so the operator
+  // can later audit where each claim came from.
+  const recentSignals = (raw.recentSignals ?? []).slice(0, 6);
+  if (ctx.sourceUrl && !recentSignals.some((s) => s.includes(ctx.sourceUrl!))) {
+    recentSignals.unshift(`[source] ${ctx.sourceUrl}`);
+  }
+
+  return {
+    name: raw.name.toUpperCase(),
+    industry: raw.industry,
+    marketShare: Math.max(0, Math.min(0.8, raw.marketShare ?? 0.15)),
+    warChest: clamp(raw.warChest, 0, 100),
+    innovationIndex: clamp(raw.innovationIndex, 0, 100),
+    brandPower: clamp(raw.brandPower, 0, 100),
+    posture: raw.posture,
+    leadershipBias: 0,
+    recentSignals: recentSignals.slice(0, 6),
+    topology,
+  };
+}
+
+export async function extractCompetitorFromURL(
+  url: string,
+  hint?: string,
+): Promise<CompetitorProfile> {
+  // Lazy import — keeps the client bundle free of the fetcher.
+  const { fetchUrlAsText } = await import("./urlFetcher");
+  const { text, sourceUrl } = await fetchUrlAsText(url);
+  if (!text || text.length < 80) {
+    throw new Error("Fetched page has too little usable text");
+  }
+  return extractCompetitorFromSource(text, { hint, sourceUrl });
+}
+
+export async function extractCompetitorFromText(
+  text: string,
+  hint?: string,
+): Promise<CompetitorProfile> {
+  if (!text || text.trim().length < 40) {
+    throw new Error("Source text is too short");
+  }
+  return extractCompetitorFromSource(text, { hint });
 }
 
 // ---------- shared ----------

@@ -38,8 +38,11 @@ export function StepCompetitor({
       <div className="flex items-start justify-end">
         <AIAssistButton
           kind="COMPETITOR_BASIC"
+          label="✨ IMPORT FROM URL OR TEXT"
+          hint="Import from URL or text"
           prompt="Describe their business — who they sell to, what they do well, where they're vulnerable"
           context={{ ourBusiness: ourBusinessSummary }}
+          supportsSourceImport
           onResult={onAI}
         />
       </div>
