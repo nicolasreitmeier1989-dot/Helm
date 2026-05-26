@@ -1,4 +1,13 @@
 // HELM — domain model for adversarial strategy simulation.
+//
+// v0.3 introduces a three-layer Strategic Topology that replaces the implicit
+// "category"-driven model. Both OUR profile and the OPPONENT profile carry a
+// full topology (Capabilities + Business Model Canvas + Value Proposition
+// Canvases). Moves are now Topology Deltas — concrete shifts on one of those
+// layers. The legacy `MoveCategory` enum stays as a derived summary tag for
+// visualization grouping; `posture / warChest / innovationIndex / brandPower`
+// stay on the competitor profile as summary signals derived alongside the
+// topology.
 
 export type Posture =
   | "AGGRESSIVE"
@@ -19,24 +28,136 @@ export type MoveCategory =
   | "CAPITAL"
   | "PARTNERSHIP";
 
+// ---------- Strategic Topology (NEW v0.3) ----------
+
+// Layer 1 — Capabilities (inside-out: what we can DO)
+export type CapabilityDimension = "PEOPLE" | "TECH" | "ORG" | "PROCESSES";
+
+export interface Capability {
+  id: string;
+  dimension: CapabilityDimension;
+  label: string;
+  level: number;       // 0..100 — current strength
+  importance: number;  // 0..100 — how strategic this capability is
+  notes?: string;
+}
+
+// Layer 2 — Business Model Canvas (Osterwalder, 9 blocks)
+export type BMCBlockKind =
+  | "CUSTOMER_SEGMENTS"
+  | "VALUE_PROPOSITIONS"
+  | "CHANNELS"
+  | "CUSTOMER_RELATIONSHIPS"
+  | "REVENUE_STREAMS"
+  | "KEY_RESOURCES"
+  | "KEY_ACTIVITIES"
+  | "KEY_PARTNERS"
+  | "COST_STRUCTURE";
+
+export interface BMCBlock {
+  id: string;
+  kind: BMCBlockKind;
+  label: string;          // e.g., "Regulated finance mid-market"
+  description?: string;
+  strength: number;       // 0..100 — defensibility / quality
+  evidence?: string[];
+}
+
+export interface BusinessModelCanvas {
+  blocks: BMCBlock[];     // multiple items per kind allowed
+}
+
+// Layer 3 — Value Proposition Canvas (Osterwalder, per customer segment)
+export interface VPCItem {
+  id: string;
+  label: string;
+  weight: number;         // 0..100
+}
+
+export interface ValuePropositionCanvas {
+  id: string;
+  customerSegmentBlockId: string;   // FK to BMC block of kind CUSTOMER_SEGMENTS
+  customerProfile: {
+    jobs: VPCItem[];
+    pains: VPCItem[];
+    gains: VPCItem[];
+  };
+  valueMap: {
+    productsServices: VPCItem[];
+    painRelievers: VPCItem[];
+    gainCreators: VPCItem[];
+  };
+}
+
+export interface StrategicTopology {
+  capabilities: Capability[];
+  bmc: BusinessModelCanvas;
+  vpcs: ValuePropositionCanvas[];
+}
+
+// ---------- Profiles ----------
+
 export interface CompetitorProfile {
   name: string;
   industry: string;
   marketShare: number;          // 0..1
-  warChest: number;             // 0..100, normalized capital availability
-  innovationIndex: number;      // 0..100
-  brandPower: number;           // 0..100
+  warChest: number;             // 0..100 (legacy summary)
+  innovationIndex: number;      // 0..100 (legacy summary)
+  brandPower: number;           // 0..100 (legacy summary)
   posture: Posture;
-  leadershipBias: number;       // -100 (founder/visionary, risky) .. +100 (PE/optimizer, conservative)
-  recentSignals: string[];      // free-text observed signals
+  leadershipBias: number;       // -100 (visionary) .. +100 (optimizer)
+  recentSignals: string[];
+  topology: StrategicTopology;  // NEW — the real model
 }
 
 export interface OwnProfile {
   name: string;
   intent: string;               // strategic intent narrative
-  openingMove: string;          // the move WE play in round 1
+  // Rumelt kernel — NEW fields:
+  diagnosis: string;            // The strategic situation in plain language.
+  guidingPolicy: string;        // The chosen approach to overcome the diagnosis.
+  openingMove: string;          // The first coherent action implementing the policy.
   horizonRounds: number;        // depth of look-ahead
   branchingFactor: number;      // moves considered per node
+  topology: StrategicTopology;  // NEW
+}
+
+// ---------- Moves are Topology Deltas (NEW v0.3) ----------
+
+export type DeltaOp = "ADD" | "STRENGTHEN" | "WEAKEN" | "REMOVE" | "MIGRATE";
+
+export type DeltaTarget =
+  | {
+      kind: "CAPABILITY";
+      dimension: CapabilityDimension;
+      capabilityId?: string;
+    }
+  | {
+      kind: "BMC_BLOCK";
+      blockKind: BMCBlockKind;
+      blockId?: string;
+    }
+  | {
+      kind: "VPC_ITEM";
+      vpcId?: string;
+      side: "CUSTOMER_PROFILE" | "VALUE_MAP";
+      itemKind:
+        | "jobs"
+        | "pains"
+        | "gains"
+        | "productsServices"
+        | "painRelievers"
+        | "gainCreators";
+      itemId?: string;
+    };
+
+export interface TopologyDelta {
+  layer: "CAPABILITIES" | "BMC" | "VPC";
+  op: DeltaOp;
+  target: DeltaTarget;
+  newLabel?: string;       // for ADD / MIGRATE
+  magnitude: number;       // 0..100 — how big the change
+  description: string;     // human-readable
 }
 
 export interface MoveNode {
@@ -44,16 +165,19 @@ export interface MoveNode {
   parentId: string | null;
   round: number;                // 1..N
   actor: "OPPONENT" | "SELF";
-  category: MoveCategory;
   title: string;
   rationale: string;
   probability: number;          // 0..1 conditional probability (given parent)
   cumulativeProbability: number;// 0..1
-  threat: number;               // 0..100, threat-to-us if executed
+  threat: number;               // 0..100, threat-to-us; COMPUTED from deltas in v0.3
   cost: number;                 // 0..100, cost-to-opponent
+  deltas: TopologyDelta[];      // NEW — what shifts on the topology
   counters: string[];           // our suggested counter-moves
   children: string[];
-  indicators?: Indicator[];     // observable leading indicators for this move (OPPONENT only)
+  indicators?: Indicator[];     // observable leading indicators (OPPONENT only)
+  // Derived summary tag for visualization grouping (computed from dominant
+  // delta target). Kept for backward compatibility with v0.2 panels.
+  category: MoveCategory;
 }
 
 // ---------- Indicators & Triggers (Strategic Operations Center) ----------

@@ -331,6 +331,7 @@ function assembleSimulation(
       cumulativeProbability: 1,
       threat: 0,
       cost: 30,
+      deltas: [],
       counters: [],
       children: [],
     };
@@ -374,6 +375,7 @@ function assembleSimulation(
         cumulativeProbability: parent.cumulativeProbability * m.probability,
         threat: clamp(m.threat, 0, 100),
         cost: clamp(m.cost, 0, 100),
+        deltas: [],
         counters: m.actor === "OPPONENT" ? (m.counters || []).slice(0, 4) : [],
         children: [],
       };

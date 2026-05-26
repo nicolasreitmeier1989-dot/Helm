@@ -1,4 +1,10 @@
 // HELM — client-side persistence (localStorage). Projects + version history.
+//
+// v0.3 bumps the store key to v2 because OwnProfile/CompetitorProfile now
+// carry full StrategicTopology + Rumelt-kernel fields. Loading from a legacy
+// v1 store is best-effort: project names are preserved so the user sees them,
+// but topology-less projects are dropped (we cannot reconstruct a topology
+// from posture/warChest alone).
 
 import type {
   CompetitorProfile,
@@ -7,7 +13,8 @@ import type {
   Simulation,
 } from "./types";
 
-const STORE_KEY = "helm:projects:v1";
+const STORE_KEY = "helm:projects:v2";
+const LEGACY_STORE_KEY = "helm:projects:v1";
 
 export interface ProjectVersion {
   id: string;
@@ -46,11 +53,31 @@ export function loadStore(): Store {
   if (typeof window === "undefined") return emptyStore();
   try {
     const raw = window.localStorage.getItem(STORE_KEY);
-    if (!raw) return emptyStore();
-    const parsed = JSON.parse(raw) as Store;
-    return parsed && Array.isArray(parsed.projects)
-      ? parsed
-      : emptyStore();
+    if (raw) {
+      const parsed = JSON.parse(raw) as Store;
+      if (parsed && Array.isArray(parsed.projects)) return parsed;
+    }
+    // Best-effort migration: detect legacy v1 entries.
+    const legacy = window.localStorage.getItem(LEGACY_STORE_KEY);
+    if (legacy) {
+      try {
+        const v1 = JSON.parse(legacy) as { projects?: { id: string; name: string }[] };
+        if (v1?.projects?.length) {
+          // We deliberately don't materialise v1 entries (they lack topology
+          // and Rumelt fields). Drop them but log to console so the user
+          // knows their project names existed.
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[HELM] Detected legacy v1 store with",
+            v1.projects.length,
+            "projects. v0.3 schema is not auto-migratable — please re-save.",
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return emptyStore();
   } catch {
     return emptyStore();
   }
@@ -78,9 +105,12 @@ export function createProject(name: string, p: Project["competitor"]): Project {
     own: {
       name: "HELM CORP",
       intent: "",
+      diagnosis: "",
+      guidingPolicy: "",
       openingMove: "",
       horizonRounds: 4,
       branchingFactor: 3,
+      topology: { capabilities: [], bmc: { blocks: [] }, vpcs: [] },
     },
     scenarios: [],
     versions: [],

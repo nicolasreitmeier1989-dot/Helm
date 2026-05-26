@@ -389,6 +389,7 @@ export function simulate(
       cumulativeProbability: 1,
       threat: 0,
       cost: 30,
+      deltas: [],
       counters: [],
       children: [],
     };
@@ -442,6 +443,7 @@ export function simulate(
             cumulativeProbability: parent.cumulativeProbability * prob,
             threat: actor === "OPPONENT" ? pl.move.threat : Math.max(0, 100 - pl.move.threat),
             cost: pl.move.cost,
+            deltas: [],
             counters: actor === "OPPONENT" ? COUNTER_LIBRARY[pl.cat].slice(0, 3) : [],
             children: [],
           };
