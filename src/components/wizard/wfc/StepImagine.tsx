@@ -1,20 +1,22 @@
 "use client";
 
-// HELM — WFC wizard step 1: Imagine the fear (Phase 4.5, extended 5Y.2).
+// HELM — WFC wizard step 1: Imagine the fear (Phase 6 click-only rewrite).
 //
-// Three textareas that surface the user's hidden moat assumptions. The
-// answers seed the rest of the WFC flow: the chosen pattern + the fear
-// paragraphs are passed to the optional AI-Assist on step 2 to sharpen
-// the auto-generated competitor template into something specific to the
-// user's industry.
+// Three ChoiceGenerators (multi-select, up to 2 picks each). The user
+// clicks the workflow attacks, pricing attacks, and data-flywheel
+// attacks that would hurt them most. The picked option payloads are
+// concatenated into the FearParagraphs shape that downstream WFC steps
+// expect, so the rest of the flow stays unchanged.
 //
-// Phase 5Y.2: optional source-import affordance — paste a URL or any raw
-// text (press release, earnings call, Wikipedia entry) and Claude turns
-// it into a real CompetitorProfile that bypasses the pattern-template
-// flow. Useful when the WFC competitor already exists in the market.
+// Context flows forward: Q2 sees Q1's picks, Q3 sees Q1+Q2 — so the
+// LLM-generated options for pricing/flywheel can be grounded in the
+// already-picked workflow attack.
+//
+// No more textareas. No more URL paste. No more AIAssistButton.
 
-import { AIAssistButton } from "@/components/wizard/AIAssistButton";
-import type { CompetitorProfile } from "@/lib/types";
+import { useMemo } from "react";
+import { ChoiceGenerator } from "@/components/choice/ChoiceGenerator";
+import type { ChoiceOption } from "@/lib/staticChoices";
 
 export interface FearParagraphs {
   workflow: string;
@@ -22,112 +24,128 @@ export interface FearParagraphs {
   flywheel: string;
 }
 
+export interface StepImagineState {
+  workflow: string[];   // picked option ids
+  pricing: string[];
+  flywheel: string[];
+  // Cached labels so we can reconstruct the FearParagraphs even after the
+  // option list refreshed away from the original entries.
+  labels: Record<string, string>;
+}
+
+export const EMPTY_IMAGINE_STATE: StepImagineState = {
+  workflow: [],
+  pricing: [],
+  flywheel: [],
+  labels: {},
+};
+
+function paragraphFor(state: StepImagineState, ids: string[]): string {
+  return ids
+    .map((id) => state.labels[id])
+    .filter((s): s is string => !!s)
+    .join(" · ");
+}
+
+export function stateToFearParagraphs(s: StepImagineState): FearParagraphs {
+  return {
+    workflow: paragraphFor(s, s.workflow),
+    pricing: paragraphFor(s, s.pricing),
+    flywheel: paragraphFor(s, s.flywheel),
+  };
+}
+
 export function StepImagine({
-  value,
+  state,
   onChange,
-  onImportCompetitor,
+  industry,
 }: {
-  value: FearParagraphs;
-  onChange: (v: FearParagraphs) => void;
-  /** Optional: when present, the step exposes an "import from URL / text"
-   *  affordance that resolves to a full CompetitorProfile and hands it up. */
-  onImportCompetitor?: (c: CompetitorProfile) => void;
+  state: StepImagineState;
+  onChange: (s: StepImagineState) => void;
+  /** When known, lets the option-generator personalise per industry. */
+  industry?: string;
 }) {
-  const set = <K extends keyof FearParagraphs>(k: K, v: string) =>
-    onChange({ ...value, [k]: v });
+  const ctxWorkflow = useMemo(
+    () => ({ industry: industry ?? "generic", layer: "workflow" }),
+    [industry],
+  );
+
+  const ctxPricing = useMemo(
+    () => ({
+      industry: industry ?? "generic",
+      layer: "pricing",
+      workflowFears: state.workflow.map((id) => state.labels[id]).filter(Boolean),
+    }),
+    [industry, state.workflow, state.labels],
+  );
+
+  const ctxFlywheel = useMemo(
+    () => ({
+      industry: industry ?? "generic",
+      layer: "flywheel",
+      workflowFears: state.workflow.map((id) => state.labels[id]).filter(Boolean),
+      pricingFears: state.pricing.map((id) => state.labels[id]).filter(Boolean),
+    }),
+    [industry, state.workflow, state.pricing, state.labels],
+  );
+
+  const recordLabels = (opts: ChoiceOption[]) => {
+    const next = { ...state.labels };
+    for (const o of opts) next[o.id] = o.label;
+    return next;
+  };
 
   return (
-    <div className="space-y-8">
-      {onImportCompetitor && (
-        <div className="border border-ink-300/60 bg-ink-50 px-4 py-3 flex items-start justify-between gap-4">
-          <div>
-            <div className="font-mono text-[10px] tracking-widest text-ink-500 mb-1">
-              ALREADY EXISTS? // IMPORT
-            </div>
-            <p className="text-[12.5px] text-ink-700 leading-relaxed max-w-md">
-              If your AI-native competitor is already in the market, skip the
-              imagination exercise and paste their URL or any source text —
-              Claude will infer the topology directly.
-            </p>
-          </div>
-          <AIAssistButton
-            kind="COMPETITOR_BASIC"
-            label="✨ IMPORT FROM URL OR TEXT"
-            hint="Import from URL or text"
-            prompt="Paste a competitor's about page, press release, earnings transcript — anything."
-            supportsSourceImport
-            onResult={(data) => {
-              const ext = data.competitor as CompetitorProfile | undefined;
-              if (ext) onImportCompetitor(ext);
-            }}
-          />
-        </div>
-      )}
-
-      <Fear
+    <div className="space-y-10">
+      <ChoiceGenerator
         kicker="Q1 // WORKFLOW"
         question="Which part of your workflow do they automate first?"
-        hint="Pick the step or function that, if an AI-native team nailed it, would hurt you most."
-        rows={4}
-        value={value.workflow}
-        onChange={(v) => set("workflow", v)}
+        hint="Pick up to 2 — the ones that scare you most."
+        questionId="wfc.fear.workflow"
+        context={ctxWorkflow}
+        count={8}
+        multiSelect
+        maxPicks={2}
+        selected={state.workflow}
+        onChange={(ids, opts) =>
+          onChange({ ...state, workflow: ids, labels: recordLabels(opts) })
+        }
       />
-      <Fear
+
+      <ChoiceGenerator
         kicker="Q2 // PRICING"
         question="What price do they charge — and what does that do to your margin?"
-        hint="Imagine the price. Then work out what it does to your unit economics if it holds."
-        rows={4}
-        value={value.pricing}
-        onChange={(v) => set("pricing", v)}
+        hint="Pick up to 2 — the pricing moves that compress your unit economics."
+        questionId="wfc.fear.pricing"
+        context={ctxPricing}
+        count={8}
+        multiSelect
+        maxPicks={2}
+        selected={state.pricing}
+        onChange={(ids, opts) =>
+          onChange({ ...state, pricing: ids, labels: recordLabels(opts) })
+        }
       />
-      <Fear
+
+      <ChoiceGenerator
         kicker="Q3 // DATA FLYWHEEL"
         question="What data flywheel are they building that you can't?"
-        hint="The compounding asset that gets harder to catch every quarter."
-        rows={4}
-        value={value.flywheel}
-        onChange={(v) => set("flywheel", v)}
+        hint="Pick up to 2 — the compounding assets that get harder to catch every quarter."
+        questionId="wfc.fear.flywheel"
+        context={ctxFlywheel}
+        count={8}
+        multiSelect
+        maxPicks={2}
+        selected={state.flywheel}
+        onChange={(ids, opts) =>
+          onChange({ ...state, flywheel: ids, labels: recordLabels(opts) })
+        }
       />
 
       <p className="font-mono text-[10px] tracking-widest text-ink-500 leading-relaxed pt-2">
-        TIP // These three questions surface your hidden moat assumptions. Be
-        specific — vague fear produces vague analysis.
+        TIP // These three click-rounds surface your hidden moat assumptions.
+        Use ↻ REFINE if none of the suggestions feel sharp enough.
       </p>
-    </div>
-  );
-}
-
-function Fear({
-  kicker,
-  question,
-  hint,
-  rows,
-  value,
-  onChange,
-}: {
-  kicker: string;
-  question: string;
-  hint: string;
-  rows: number;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <div className="font-mono text-[10px] tracking-widest text-ink-500 mb-1.5">
-        {kicker}
-      </div>
-      <h3 className="text-[18px] tracking-tight text-ink-1000 mb-1">
-        {question}
-      </h3>
-      <p className="text-[13px] text-ink-600 leading-relaxed mb-3">{hint}</p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        className="w-full bg-ink-0 border border-ink-300 text-ink-900 px-3 py-2.5 text-[14px] outline-none focus:border-ink-900 transition-colors resize-y leading-relaxed"
-        placeholder="Write a few sentences. Specific names, numbers, and mechanisms beat abstractions."
-      />
     </div>
   );
 }

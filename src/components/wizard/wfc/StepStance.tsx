@@ -1,12 +1,15 @@
 "use client";
 
-// HELM — WFC wizard step 4: Stance (Phase 4.5).
+// HELM — WFC wizard step 4: Stance (Phase 6 click-only rewrite).
 //
 // Seven defender-option cards (single-select, radio-style). Picking a
-// stance auto-prefills three Rumelt-kernel textareas based on the chosen
-// pattern + the exposed BMC blocks. The user can edit any of the three
-// before finishing — they become own.diagnosis / own.guidingPolicy /
-// own.openingMove on the final project.
+// stance auto-prefills the Rumelt-kernel triple based on the chosen
+// pattern + the exposed BMC blocks.
+//
+// Phase 6: the previously-editable kernel textareas are replaced by a
+// read-only summary panel (no typing anywhere in the wizard). If the
+// user wants to tweak the prefilled language they can do it later in
+// the dashboard editors (deferred to a future phase).
 
 import { useEffect } from "react";
 import { AI_NATIVE_PATTERNS, type AIPatternId } from "@/lib/aiNativePatterns";
@@ -40,7 +43,6 @@ export function StepStance({
     ? DEFENDER_OPTIONS.find((o) => o.id === stanceId)
     : undefined;
 
-  // Labels of OUR exposed BMC blocks — used to fill the diagnosis sentence.
   const exposedBlockLabels = pattern
     ? ownTopology.bmc.blocks
         .filter((b) => pattern.exposedBlocks.includes(b.kind))
@@ -64,11 +66,6 @@ export function StepStance({
     onStanceId(id);
   };
 
-  const setKernel = <K extends "diagnosis" | "guidingPolicy" | "openingMove">(
-    k: K,
-    v: string,
-  ) => onOwnChange({ ...own, [k]: v });
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -91,32 +88,14 @@ export function StepStance({
             Your opening move, prefilled
           </h2>
           <p className="text-[13px] text-ink-600 leading-relaxed mb-5">
-            Edit any of the three fields. They become the strategic kernel the
-            simulation rolls out from.
+            Generated from your picked stance + pattern. Refine later in
+            the dashboard editor.
           </p>
 
-          <div className="space-y-6">
-            <Kernel
-              kicker="DIAGNOSIS"
-              question="What situation are you trying to address?"
-              value={own.diagnosis}
-              rows={4}
-              onChange={(v) => setKernel("diagnosis", v)}
-            />
-            <Kernel
-              kicker="GUIDING POLICY"
-              question="What's your overall approach?"
-              value={own.guidingPolicy}
-              rows={4}
-              onChange={(v) => setKernel("guidingPolicy", v)}
-            />
-            <Kernel
-              kicker="OPENING MOVE"
-              question="What's the first concrete move you'll make?"
-              value={own.openingMove}
-              rows={3}
-              onChange={(v) => setKernel("openingMove", v)}
-            />
+          <div className="space-y-3">
+            <KernelDisplay kicker="DIAGNOSIS" body={own.diagnosis} />
+            <KernelDisplay kicker="GUIDING POLICY" body={own.guidingPolicy} />
+            <KernelDisplay kicker="OPENING MOVE" body={own.openingMove} />
           </div>
         </div>
       )}
@@ -170,33 +149,15 @@ function StanceCard({
   );
 }
 
-function Kernel({
-  kicker,
-  question,
-  value,
-  rows,
-  onChange,
-}: {
-  kicker: string;
-  question: string;
-  value: string;
-  rows: number;
-  onChange: (v: string) => void;
-}) {
+function KernelDisplay({ kicker, body }: { kicker: string; body: string }) {
   return (
-    <div>
+    <div className="border border-ink-200 bg-ink-50 px-4 py-3">
       <div className="font-mono text-[10px] tracking-widest text-ink-500 mb-1">
         {kicker}
       </div>
-      <h3 className="text-[16px] tracking-tight text-ink-1000 mb-2">
-        {question}
-      </h3>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        className="w-full bg-ink-0 border border-ink-300 text-ink-900 px-3 py-2.5 text-[14px] outline-none focus:border-ink-900 transition-colors resize-y leading-relaxed"
-      />
+      <p className="text-[13.5px] leading-relaxed text-ink-1000">
+        {body || <span className="text-ink-400 italic">— not set —</span>}
+      </p>
     </div>
   );
 }

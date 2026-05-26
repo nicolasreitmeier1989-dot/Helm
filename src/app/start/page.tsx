@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard route (Phase 4 + 4.5).
+// HELM — wizard route (Phase 4 + 4.5 + 6 click-only).
 //
 // /start opens with a ModeChooser (WFC / Quick / Deep). Once a mode is
 // picked, the WizardShell drives the user through the steps. The final
@@ -9,6 +9,11 @@
 //
 // Phase 4.5: `?mode=wfc` skips the chooser and jumps straight into the
 // WFC step flow (Imagine → Pattern → Exposure → Stance).
+//
+// Phase 6: every wizard step is now click-only — no text inputs, no
+// textareas, no URL paste. Industry is asked once up-front (or as the
+// first step in WFC mode) and threaded as context to all subsequent
+// ChoiceGenerators so option suggestions stay grounded.
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -21,11 +26,14 @@ import { StepCompetitor } from "@/components/wizard/StepCompetitor";
 import { StepMove } from "@/components/wizard/StepMove";
 import {
   StepImagine,
-  type FearParagraphs,
+  EMPTY_IMAGINE_STATE,
+  stateToFearParagraphs,
+  type StepImagineState,
 } from "@/components/wizard/wfc/StepImagine";
 import { StepPattern } from "@/components/wizard/wfc/StepPattern";
 import { StepExposure } from "@/components/wizard/wfc/StepExposure";
 import { StepStance } from "@/components/wizard/wfc/StepStance";
+import { ChoiceGenerator } from "@/components/choice/ChoiceGenerator";
 import {
   DEFAULT_SCENARIOS,
   EMPTY_COMPETITOR,
@@ -79,12 +87,16 @@ function StartPage() {
   });
   const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
 
+  // Industry is asked once up-front (WFC mode) or inside StepCompetitor
+  // (Quick / Deep). Threading it as context makes every downstream
+  // option suggestion industry-specific.
+  const [industry, setIndustry] = useState<string>("");
+  const [industryId, setIndustryId] = useState<string | null>(null);
+
   // WFC-only state ---------------------------------------------------------
-  const [fears, setFears] = useState<FearParagraphs>({
-    workflow: "",
-    pricing: "",
-    flywheel: "",
-  });
+  const [imagineState, setImagineState] = useState<StepImagineState>(
+    EMPTY_IMAGINE_STATE,
+  );
   const [patternPicks, setPatternPicks] = useState<AIPatternId[]>([]);
   const [stanceId, setStanceId] = useState<DefenderOptionId | undefined>(
     undefined,
@@ -110,9 +122,6 @@ function StartPage() {
     ? AI_NATIVE_PATTERNS.find((p) => p.id === patternPicks[0])
     : undefined;
 
-  // Whenever the primary pattern changes, swap the competitor template in.
-  // This is harmless if the user later refines with AI-Assist — that handler
-  // overwrites the same `competitor` slot.
   const applyPrimaryPattern = (id: AIPatternId) => {
     const pattern = AI_NATIVE_PATTERNS.find((p) => p.id === id);
     if (!pattern) return;
@@ -127,8 +136,6 @@ function StartPage() {
     }
   };
 
-  // "Use defaults" on exposure step — populate OUR topology with minimal
-  // placeholder BMC blocks for each block kind the pattern attacks.
   const handleUseDefaults = () => {
     if (!primaryPattern) {
       setIndex((i) => i + 1);
@@ -153,17 +160,46 @@ function StartPage() {
     setIndex((i) => i + 1);
   };
 
+  // WFC mode: prepend an industry-pick step so the LLM has context for
+  // the fear-question rounds.
   const wfcSteps: WizardStep[] = [
+    {
+      key: "industry",
+      title: "What industry are you in?",
+      subtitle:
+        "Picks here scope every subsequent suggestion. Click one.",
+      render: () => (
+        <div className="space-y-6">
+          <ChoiceGenerator
+            kicker="INDUSTRY"
+            question="What industry are you in?"
+            questionId="industry.pick"
+            context={{}}
+            count={8}
+            selected={industryId ? [industryId] : []}
+            onChange={(ids, opts) => {
+              const id = ids[0] ?? null;
+              setIndustryId(id);
+              const picked = opts.find((o) => o.id === id);
+              if (picked) {
+                setIndustry(picked.label);
+                setCompetitor((c) => ({ ...c, industry: picked.label }));
+              }
+            }}
+          />
+        </div>
+      ),
+    },
     {
       key: "imagine",
       title: "Imagine the AI-native team that would kill your business.",
       subtitle:
-        "It doesn't have to exist yet. Describe the one you'd most fear.",
+        "Pick the attacks that scare you most. No typing — only clicks.",
       render: () => (
         <StepImagine
-          value={fears}
-          onChange={setFears}
-          onImportCompetitor={(c) => setCompetitor(c)}
+          state={imagineState}
+          onChange={setImagineState}
+          industry={industry}
         />
       ),
     },
@@ -176,7 +212,8 @@ function StartPage() {
         <StepPattern
           picks={patternPicks}
           onPicks={handlePatternPicks}
-          fears={fears}
+          industry={industry}
+          competitor={competitor}
           onAIRefine={(c) => setCompetitor(c)}
         />
       ),
@@ -185,7 +222,7 @@ function StartPage() {
       key: "exposure",
       title: "Where on your business does this land?",
       subtitle:
-        "Auto-generated from your fear + pattern. Review and edit.",
+        "Auto-generated from your fear + pattern. Review and click defaults to populate.",
       skippable: true,
       render: () => (
         <StepExposure
@@ -219,12 +256,13 @@ function StartPage() {
       key: "bmc",
       title: "What's your business model?",
       subtitle:
-        "Map who you serve, what value you deliver, how it works under the hood.",
+        "Click your strongest options for each Osterwalder block.",
       render: () => (
         <StepBMC
           topology={own.topology}
           onChange={(t) => setOwn({ ...own, topology: t })}
           ownName={own.name}
+          industry={industry}
         />
       ),
     },
@@ -232,13 +270,15 @@ function StartPage() {
       key: "competitor",
       title: "Who are you up against?",
       subtitle:
-        "A name and an industry are enough to get started. You can map their topology later.",
+        "Pick an industry, then a competitor archetype.",
       render: () => (
         <StepCompetitor
           competitor={competitor}
           onChange={setCompetitor}
           ourBusinessSummary={ownBusinessSummary}
           showTopology={false}
+          industry={industry || undefined}
+          onIndustry={setIndustry}
         />
       ),
     },
@@ -246,8 +286,10 @@ function StartPage() {
       key: "move",
       title: "What's your move?",
       subtitle:
-        "Three short questions, in the spirit of Rumelt's strategy kernel.",
-      render: () => <StepMove own={own} onChange={setOwn} />,
+        "Three short Rumelt-kernel rounds. All click-based.",
+      render: () => (
+        <StepMove own={own} onChange={setOwn} competitor={competitor} />
+      ),
     },
   ];
 
@@ -256,12 +298,13 @@ function StartPage() {
       key: "bmc",
       title: "What's your business model?",
       subtitle:
-        "Map who you serve, what value you deliver, how it works under the hood.",
+        "Click your strongest options for each Osterwalder block.",
       render: () => (
         <StepBMC
           topology={own.topology}
           onChange={(t) => setOwn({ ...own, topology: t })}
           ownName={own.name}
+          industry={industry}
         />
       ),
     },
@@ -269,13 +312,14 @@ function StartPage() {
       key: "vpc",
       title: "How do you create value for them?",
       subtitle:
-        "One Value Proposition Canvas per customer segment. Skip any segment to come back to it later.",
+        "Click jobs, pains, gains — and your products, relievers, gain-creators. Skip any segment.",
       skippable: true,
       render: () => (
         <StepVPC
           topology={own.topology}
           onChange={(t) => setOwn({ ...own, topology: t })}
           ownName={own.name}
+          industry={industry}
         />
       ),
     },
@@ -283,13 +327,14 @@ function StartPage() {
       key: "capabilities",
       title: "What can you actually do?",
       subtitle:
-        "Capability sets across People, Tech, Org, Processes. Skip to start with a blank slate.",
+        "Click your strongest capability-sets across People, Tech, Org, Processes.",
       skippable: true,
       render: () => (
         <StepCapabilities
           topology={own.topology}
           onChange={(t) => setOwn({ ...own, topology: t })}
           ownName={own.name}
+          industry={industry}
         />
       ),
     },
@@ -297,13 +342,15 @@ function StartPage() {
       key: "competitor",
       title: "Who are you up against?",
       subtitle:
-        "Name + industry are enough. Optionally open the detailed mapping.",
+        "Pick an industry, then a competitor archetype. Refinement step adjusts posture / war-chest.",
       render: () => (
         <StepCompetitor
           competitor={competitor}
           onChange={setCompetitor}
           ourBusinessSummary={ownBusinessSummary}
           showTopology={true}
+          industry={industry || undefined}
+          onIndustry={setIndustry}
         />
       ),
     },
@@ -311,8 +358,10 @@ function StartPage() {
       key: "move",
       title: "What's your move?",
       subtitle:
-        "Three short questions, in the spirit of Rumelt's strategy kernel.",
-      render: () => <StepMove own={own} onChange={setOwn} />,
+        "Three short Rumelt-kernel rounds. All click-based.",
+      render: () => (
+        <StepMove own={own} onChange={setOwn} competitor={competitor} />
+      ),
     },
   ];
 
@@ -320,16 +369,6 @@ function StartPage() {
     mode === "WFC" ? wfcSteps : mode === "EXPRESS" ? quickSteps : deepSteps;
   const isLast = index === steps.length - 1;
 
-  // ----- WFC scenario seeding helper ------------------------------------
-  //
-  // When the user finishes the WFC flow we seed the war-game with three
-  // scenarios:
-  //   - Baseline   (consensus trajectory)
-  //   - Regulatory shock (slowed AI-native rollout)
-  //   - AI-Native Disruption (the chosen pattern at maximum velocity)
-  // The third one is generated from the pattern; the other two come from
-  // DEFAULT_SCENARIOS with weights re-balanced so the disruption rollout
-  // dominates the rollout pool.
   const buildWFCScenarios = (): Scenario[] => {
     if (!primaryPattern) return scenarios;
     const baseline: Scenario = {
@@ -355,6 +394,7 @@ function StartPage() {
     let scenariosToSave: Scenario[] = scenarios;
     let wfc: WFCContext | undefined = undefined;
     let projectName = `${own.name || "OUR COMPANY"} vs ${competitor.name || "COMPETITOR"}`;
+    const fears = stateToFearParagraphs(imagineState);
 
     if (mode === "WFC" && primaryPattern && stanceId) {
       scenariosToSave = buildWFCScenarios();
@@ -409,7 +449,7 @@ function StartPage() {
           ? {
               patternId: primaryPattern.id,
               stanceId: stanceId ?? "HARDEN_HUMAN",
-              fearParagraphs: fears,
+              fearParagraphs: stateToFearParagraphs(imagineState),
               createdAt: now,
             }
           : undefined,
@@ -417,11 +457,15 @@ function StartPage() {
     window.location.href = "/";
   };
 
-  // Block Next on the Stance step until a stance is actually picked, since
-  // the kernel needs to be filled before the engine runs.
+  // Block "Next" until the user has picked enough to proceed on the
+  // following steps:
+  //   WFC step 0 (industry) — require an industry pick
+  //   WFC step 2 (pattern)  — require at least one pattern
+  //   WFC last step (stance) — require a stance pick
   const nextDisabled =
     mode === "WFC" &&
-    ((index === 1 && !patternPicks[0]) ||
+    ((index === 0 && !industryId) ||
+      (index === 2 && !patternPicks[0]) ||
       (index === wfcSteps.length - 1 && !stanceId));
 
   return (
