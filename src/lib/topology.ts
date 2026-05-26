@@ -32,7 +32,7 @@ const STOPWORDS = new Set([
 function tokens(s: string): string[] {
   return s
     .toLowerCase()
-    .replace(/[^a-z0-9äöüß\s-]/g, " ")
+    .replace(/[^a-z0-9äöüß\s]/g, " ")
     .split(/\s+/)
     .map((t) => t.trim())
     .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
