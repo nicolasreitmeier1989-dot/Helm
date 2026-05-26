@@ -104,6 +104,35 @@ export interface ProjectVersion {
   backend: "HEURISTIC" | "CLAUDE";
 }
 
+// WFC = Worst Feared (AI-native) Competitor. Phase 4.5 onboarding mode.
+// Stored alongside the standard project fields so the briefing page can
+// detect it and render an additional "AI-Native Threat Assessment"
+// section. Optional — Quick/Deep projects don't set it.
+export type WFCPatternId =
+  | "COGNITIVE_ARBITRAGE"
+  | "WORKFLOW_COLLAPSE"
+  | "SELF_SERVICE_ABSORPTION"
+  | "PERSONALIZATION_UNIT_OF_ONE"
+  | "VERTICAL_AGENT_STACK"
+  | "COST_FLOOR_RESET"
+  | "DATA_FLYWHEEL_CAPTURE";
+
+export type WFCStanceId =
+  | "HARDEN_HUMAN"
+  | "ACQUIRE_DISRUPTOR"
+  | "CARVE_OUT_PNL"
+  | "VERTICALIZE_DOWN"
+  | "PICKS_AND_SHOVELS"
+  | "MARGIN_MIGRATION"
+  | "GRACEFUL_HARVEST";
+
+export interface WFCContext {
+  patternId: WFCPatternId;
+  stanceId: WFCStanceId;
+  fearParagraphs: { workflow: string; pricing: string; flywheel: string };
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -113,6 +142,7 @@ export interface Project {
   own: OwnProfile;
   scenarios: Scenario[];
   versions: ProjectVersion[];
+  wfc?: WFCContext;
 }
 
 interface Store {

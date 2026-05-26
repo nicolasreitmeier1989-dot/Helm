@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  extractAINativeCompetitor,
   extractBMC,
   extractCapabilities,
   extractCompetitorBasic,
@@ -41,7 +42,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  if (!body?.kind || !body?.description || body.description.trim().length < 8) {
+  if (!body?.kind) {
+    return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+  }
+  // AI_NATIVE_COMPETITOR drives off `context`; all other kinds require a
+  // description paragraph from the AIAssistButton textarea.
+  if (
+    body.kind !== "AI_NATIVE_COMPETITOR" &&
+    (!body.description || body.description.trim().length < 8)
+  ) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
 
@@ -81,6 +90,27 @@ export async function POST(req: NextRequest) {
           body.description,
           ctx,
         );
+        return NextResponse.json({ ok: true, competitor });
+      }
+      case "AI_NATIVE_COMPETITOR": {
+        const ctx = (body.context ?? {}) as {
+          patternName?: string;
+          fearWorkflow?: string;
+          fearPricing?: string;
+          fearFlywheel?: string;
+        };
+        if (!ctx.patternName) {
+          return NextResponse.json(
+            { error: "missing_context", message: "patternName required" },
+            { status: 400 },
+          );
+        }
+        const competitor = await extractAINativeCompetitor({
+          patternName: ctx.patternName,
+          fearWorkflow: ctx.fearWorkflow,
+          fearPricing: ctx.fearPricing,
+          fearFlywheel: ctx.fearFlywheel,
+        });
         return NextResponse.json({ ok: true, competitor });
       }
       default:

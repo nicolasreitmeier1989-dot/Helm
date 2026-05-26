@@ -20,7 +20,12 @@ import type {
   VPCItem,
 } from "./types";
 
-export type ExtractKind = "BMC" | "VPC" | "CAPABILITIES" | "COMPETITOR_BASIC";
+export type ExtractKind =
+  | "BMC"
+  | "VPC"
+  | "CAPABILITIES"
+  | "COMPETITOR_BASIC"
+  | "AI_NATIVE_COMPETITOR";
 
 export interface ExtractRequest {
   kind: ExtractKind;
@@ -656,6 +661,266 @@ export async function extractCompetitorBasic(
     brandPower: clamp(raw.brandPower, 0, 100),
     posture: raw.posture,
     leadershipBias: 0,
+    recentSignals: raw.recentSignals.slice(0, 6),
+    topology,
+  };
+}
+
+// ---------- AI_NATIVE_COMPETITOR extractor (Phase 4.5) ----------
+//
+// Sharpens a pattern-derived template using the user's three fear-paragraphs
+// (workflow / pricing / flywheel) and the chosen pattern name. Produces a
+// CompetitorProfile with: industry tied to the inferred sector, a refined
+// posture, a realistic suggested name, and a small topology with the
+// MUST-HAVE "AI-Native Operations" set plus 2-3 pattern-specific sets.
+
+const AI_NATIVE_COMP_SYSTEM = `You sharpen the profile of an AI-native challenger that the user is afraid of.
+
+You receive:
+  - three short paragraphs (workflow / pricing / data flywheel fears)
+  - the disruption pattern they picked (e.g. "Cost-Floor Reset", "Workflow Collapse")
+
+Return a sharpened CompetitorProfile that goes beyond the generic template:
+  - a plausible suggested name (short, no real-company names)
+  - inferred industry (one line)
+  - posture (AGGRESSIVE | EXPANSIVE | DEFENSIVE | OPPORTUNISTIC | CONSERVATIVE)
+  - warChest / innovationIndex / brandPower (0..100)
+  - 2-3 capability sets with realistic labels (each with 1-3 capabilities). The
+    set "AI-Native Operations" MUST be present, EMERGING, era 2024.
+  - 2-4 BMC blocks across the most relevant kinds for the chosen pattern
+  - 1 VPC tied to one of the BMC customer segments
+
+Be specific and grounded. Match the language of the user's input.`;
+
+const AI_NATIVE_COMP_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    name: { type: "string" },
+    industry: { type: "string" },
+    posture: {
+      type: "string",
+      enum: [
+        "AGGRESSIVE",
+        "EXPANSIVE",
+        "DEFENSIVE",
+        "OPPORTUNISTIC",
+        "CONSERVATIVE",
+      ],
+    },
+    warChest: { type: "integer" },
+    innovationIndex: { type: "integer" },
+    brandPower: { type: "integer" },
+    marketShare: { type: "number" },
+    recentSignals: { type: "array", items: { type: "string" } },
+    bmc: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          temp_id: { type: "string" },
+          kind: {
+            type: "string",
+            enum: [
+              "CUSTOMER_SEGMENTS",
+              "VALUE_PROPOSITIONS",
+              "CHANNELS",
+              "CUSTOMER_RELATIONSHIPS",
+              "REVENUE_STREAMS",
+              "KEY_RESOURCES",
+              "KEY_ACTIVITIES",
+              "KEY_PARTNERS",
+              "COST_STRUCTURE",
+            ],
+          },
+          label: { type: "string" },
+          strength: { type: "integer" },
+        },
+        required: ["temp_id", "kind", "label", "strength"],
+      },
+    },
+    vpcs: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          customer_segment_temp_id: { type: "string" },
+          jobs: { type: "array", items: { type: "string" } },
+          pains: { type: "array", items: { type: "string" } },
+          gains: { type: "array", items: { type: "string" } },
+          productsServices: { type: "array", items: { type: "string" } },
+          painRelievers: { type: "array", items: { type: "string" } },
+          gainCreators: { type: "array", items: { type: "string" } },
+        },
+        required: [
+          "customer_segment_temp_id",
+          "jobs",
+          "pains",
+          "gains",
+          "productsServices",
+          "painRelievers",
+          "gainCreators",
+        ],
+      },
+    },
+    capabilitySets: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          temp_id: { type: "string" },
+          name: { type: "string" },
+          dimension: {
+            type: "string",
+            enum: ["PEOPLE", "TECH", "ORG", "PROCESSES"],
+          },
+          era: { type: "integer" },
+          lifecycle: {
+            type: "string",
+            enum: ["EMERGING", "GROWING", "MATURE", "DECLINING", "OBSOLETE"],
+          },
+          capabilities: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                label: { type: "string" },
+                level: { type: "integer" },
+                importance: { type: "integer" },
+              },
+              required: ["label", "level", "importance"],
+            },
+          },
+        },
+        required: [
+          "temp_id",
+          "name",
+          "dimension",
+          "era",
+          "lifecycle",
+          "capabilities",
+        ],
+      },
+    },
+  },
+  required: [
+    "name",
+    "industry",
+    "posture",
+    "warChest",
+    "innovationIndex",
+    "brandPower",
+    "marketShare",
+    "recentSignals",
+    "bmc",
+    "vpcs",
+    "capabilitySets",
+  ],
+} as const;
+
+export interface AINativeFearContext {
+  patternName: string;
+  fearWorkflow?: string;
+  fearPricing?: string;
+  fearFlywheel?: string;
+}
+
+export async function extractAINativeCompetitor(
+  ctx: AINativeFearContext,
+): Promise<CompetitorProfile> {
+  const userPayload = JSON.stringify({
+    pattern: ctx.patternName,
+    fearWorkflow: ctx.fearWorkflow ?? "",
+    fearPricing: ctx.fearPricing ?? "",
+    fearFlywheel: ctx.fearFlywheel ?? "",
+  });
+
+  const raw = (await callClaude({
+    systemPrompt: AI_NATIVE_COMP_SYSTEM,
+    schema: AI_NATIVE_COMP_SCHEMA as unknown as Record<string, unknown>,
+    schemaName: "helm_ai_native_competitor_extract",
+    userPayload,
+  })) as CompRaw;
+
+  // Re-use the same wiring as extractCompetitorBasic — temp ids → real ids.
+  const bmcIdMap: Record<string, string> = {};
+  const bmcBlocks: BMCBlock[] = raw.bmc.map((b) => {
+    const id = uid("bmc");
+    bmcIdMap[b.temp_id] = id;
+    return {
+      id,
+      kind: b.kind,
+      label: b.label,
+      strength: clamp(b.strength, 0, 100),
+    };
+  });
+
+  const vpcs: ValuePropositionCanvas[] = raw.vpcs
+    .map((v) => {
+      const segId = bmcIdMap[v.customer_segment_temp_id];
+      if (!segId) return null;
+      const toItems = (labels: string[]): VPCItem[] =>
+        labels.map((l) => ({ id: uid("vi"), label: l, weight: 65 }));
+      return {
+        id: uid("vpc"),
+        customerSegmentBlockId: segId,
+        customerProfile: {
+          jobs: toItems(v.jobs),
+          pains: toItems(v.pains),
+          gains: toItems(v.gains),
+        },
+        valueMap: {
+          productsServices: toItems(v.productsServices),
+          painRelievers: toItems(v.painRelievers),
+          gainCreators: toItems(v.gainCreators),
+        },
+      } satisfies ValuePropositionCanvas;
+    })
+    .filter((v): v is ValuePropositionCanvas => v !== null);
+
+  const sets: CapabilitySet[] = [];
+  const caps: Capability[] = [];
+  for (const s of raw.capabilitySets) {
+    const setId = uid("cs");
+    sets.push({
+      id: setId,
+      name: s.name,
+      dimension: s.dimension,
+      era: s.era,
+      lifecycle: s.lifecycle,
+      source: "STANDARD",
+    });
+    for (const c of s.capabilities) {
+      caps.push({
+        id: uid("cap"),
+        setId,
+        label: c.label,
+        level: clamp(c.level, 0, 100),
+        importance: clamp(c.importance, 0, 100),
+      });
+    }
+  }
+
+  const topology: StrategicTopology = {
+    capabilitySets: sets,
+    capabilities: caps,
+    bmc: { blocks: bmcBlocks },
+    vpcs,
+  };
+
+  return {
+    name: raw.name.toUpperCase(),
+    industry: raw.industry,
+    marketShare: Math.max(0, Math.min(0.5, raw.marketShare ?? 0.05)),
+    warChest: clamp(raw.warChest, 0, 100),
+    innovationIndex: clamp(raw.innovationIndex, 0, 100),
+    brandPower: clamp(raw.brandPower, 0, 100),
+    posture: raw.posture,
+    leadershipBias: -50,
     recentSignals: raw.recentSignals.slice(0, 6),
     topology,
   };
