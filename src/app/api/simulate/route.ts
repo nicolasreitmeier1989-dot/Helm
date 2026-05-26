@@ -11,6 +11,10 @@ interface Body {
   competitor: CompetitorProfile;
   own: OwnProfile;
   scenarios: Scenario[];
+  // Phase 5X.2 — opt-in sub-mode. Default DIRECT preserves the cheap
+  // single-call shape; ADJUDICATED splits Red/White/Blue into three sealed
+  // Claude calls per round per scenario.
+  mode?: "DIRECT" | "ADJUDICATED";
 }
 
 export async function POST(req: NextRequest) {
@@ -33,7 +37,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const sim = await simulateWithClaude(body);
+    const sim = await simulateWithClaude({
+      competitor: body.competitor,
+      own: body.own,
+      scenarios: body.scenarios,
+      mode: body.mode === "ADJUDICATED" ? "ADJUDICATED" : "DIRECT",
+    });
     return NextResponse.json({ ok: true, simulation: sim });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {

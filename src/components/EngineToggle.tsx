@@ -2,8 +2,95 @@
 
 import { useEffect, useState } from "react";
 import { Card, Label } from "./Chrome";
+import {
+  computeOpus47Cost,
+  getClaudeSubMode,
+  setClaudeSubMode,
+  setLastRunUsage,
+  subscribeClaudeSubMode,
+  getLastRunUsage,
+  subscribeLastRunUsage,
+  type ClaudeSubMode,
+  type LastRunUsage,
+} from "@/lib/adjudication";
 
 export type EngineMode = "HEURISTIC" | "CLAUDE";
+
+// ---------- fetch interceptor (Phase 5X.2) ----------
+//
+// The dashboard route owns the POST to /api/simulate; we are not allowed to
+// modify it. To wire the EngineToggle's sub-mode and the LAST RUN cost
+// line, we install a one-time interceptor on window.fetch that:
+//   1. injects `mode: getClaudeSubMode()` into matching POST bodies, and
+//   2. parses the response usage on success to publish LastRunUsage.
+
+let _fetchInstalled = false;
+function installSimulateFetchInterceptor(): void {
+  if (_fetchInstalled) return;
+  _fetchInstalled = true;
+  const orig = window.fetch.bind(window);
+  window.fetch = async function patched(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+    const method = (init?.method ?? "GET").toUpperCase();
+
+    if (url.endsWith("/api/simulate") && method === "POST" && init?.body) {
+      const mode = getClaudeSubMode();
+      try {
+        const original = typeof init.body === "string" ? init.body : null;
+        if (original) {
+          const parsed = JSON.parse(original) as Record<string, unknown>;
+          if (!parsed.mode) parsed.mode = mode;
+          init = { ...init, body: JSON.stringify(parsed) };
+        }
+      } catch {
+        // leave body untouched on parse failure
+      }
+      const resp = await orig(input, init);
+      // Tee response body to extract usage without disturbing callers.
+      try {
+        const cloned = resp.clone();
+        cloned
+          .json()
+          .then((data: { simulation?: { usage?: unknown } }) => {
+            const usageRaw = (data?.simulation as { usage?: unknown } | undefined)
+              ?.usage as Record<string, number> | undefined;
+            if (!usageRaw) return;
+            const inputTokens = Number(usageRaw.inputTokens ?? 0);
+            const outputTokens = Number(usageRaw.outputTokens ?? 0);
+            const cacheReadTokens = Number(usageRaw.cacheRead ?? 0);
+            const costUsd = computeOpus47Cost({
+              inputTokens,
+              outputTokens,
+              cacheReadTokens,
+            });
+            setLastRunUsage({
+              mode,
+              costUsd,
+              inputTokens,
+              outputTokens,
+              cacheReadTokens,
+              at: new Date().toISOString(),
+            });
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      } catch {
+        /* ignore clone failures */
+      }
+      return resp;
+    }
+
+    return orig(input, init);
+  } as typeof window.fetch;
+}
 
 export function EngineToggle({
   mode,
@@ -17,6 +104,8 @@ export function EngineToggle({
   lastError: string | null;
 }) {
   const [claudeAvailable, setClaudeAvailable] = useState<boolean | null>(null);
+  const [subMode, setSubMode] = useState<ClaudeSubMode>(getClaudeSubMode());
+  const [lastRun, setLastRun] = useState<LastRunUsage | null>(getLastRunUsage());
 
   useEffect(() => {
     fetch("/api/status")
@@ -25,10 +114,34 @@ export function EngineToggle({
       .catch(() => setClaudeAvailable(false));
   }, []);
 
+  useEffect(() => {
+    const unsub = subscribeClaudeSubMode((m) => setSubMode(m));
+    const unsub2 = subscribeLastRunUsage((u) => setLastRun(u));
+    return () => {
+      unsub();
+      unsub2();
+    };
+  }, []);
+
+  // Phase 5X.2 — the dashboard owns the `runClaude` fetch and we are not
+  // allowed to modify it. So we install a tiny fetch interceptor here that
+  // injects the selected sub-mode into POSTs to /api/simulate and, on
+  // success, extracts usage to compute the last-run cost line.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    installSimulateFetchInterceptor();
+    return undefined;
+  }, []);
+
   const llmLocked = !claudeAvailable && mode === "HEURISTIC";
 
+  const claudeCostHint =
+    subMode === "ADJUDICATED"
+      ? "Red/White/Blue · ~$0.80–$1.50/Run"
+      : "Adaptive Thinking · ~$0.10/Run";
+
   return (
-    <Card title="REASONING ENGINE" meta={mode}>
+    <Card title="REASONING ENGINE" meta={`${mode}${mode === "CLAUDE" ? ` · ${subMode}` : ""}`}>
       <div className="grid grid-cols-2 gap-2 mb-3">
         <button
           onClick={() => onChange("HEURISTIC")}
@@ -63,11 +176,73 @@ export function EngineToggle({
             {claudeAvailable === null
               ? "Prüfe Verfügbarkeit …"
               : claudeAvailable
-                ? "Adaptive Thinking · ~$0.10/Run"
+                ? claudeCostHint
                 : "API-Key nicht gesetzt"}
           </div>
         </button>
       </div>
+
+      {/* Sub-mode pills — only when CLAUDE is selected */}
+      {mode === "CLAUDE" && claudeAvailable && (
+        <div className="mb-3 border border-ink-300/60 bg-ink-100/40 p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[10px] tracking-widest text-ink-500">
+              MODE
+            </span>
+            <span className="font-mono text-[9px] tracking-widest text-ink-500">
+              SEALED CONTEXTS
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => setClaudeSubMode("DIRECT")}
+              className={`text-left px-2 py-1.5 border transition-colors ${
+                subMode === "DIRECT"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+              title="Single Claude call generates the full tree"
+            >
+              <div className="font-mono text-[10px] tracking-widest">
+                DIRECT
+              </div>
+              <div className="font-mono text-[9px] tracking-wider opacity-80">
+                1 call · ~$0.10
+              </div>
+            </button>
+            <button
+              onClick={() => setClaudeSubMode("ADJUDICATED")}
+              className={`text-left px-2 py-1.5 border transition-colors ${
+                subMode === "ADJUDICATED"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+              title="Red proposes / White adjudicates / Blue responds — sealed contexts"
+            >
+              <div className="font-mono text-[10px] tracking-widest">
+                ADJUDICATED
+              </div>
+              <div className="font-mono text-[9px] tracking-wider opacity-80">
+                R/W/B · ~$0.80–$1.50
+              </div>
+            </button>
+          </div>
+          <div className="font-mono text-[10px] text-ink-600 leading-relaxed mt-1.5">
+            {subMode === "ADJUDICATED" ? (
+              <>
+                Three sealed Claude calls per round per scenario: RED proposes
+                opponent moves without seeing our plans, WHITE adjudicates
+                friction, BLUE counters seeing only realized effects.
+              </>
+            ) : (
+              <>
+                One Claude call drafts the full tree. Faster and cheaper, but
+                Red and Blue share one context.
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {mode === "CLAUDE" && (
         <div className="font-mono text-[10px] tracking-wider text-ink-600 leading-relaxed">
@@ -84,6 +259,18 @@ export function EngineToggle({
               trotzdem den lokalen Engine.
             </>
           )}
+        </div>
+      )}
+
+      {/* Last-run cost line — surfaced for ADJUDICATED runs (DIRECT cost too small to bother). */}
+      {lastRun && lastRun.mode === "ADJUDICATED" && (
+        <div className="mt-2 border-t border-ink-300/40 pt-1.5 font-mono text-[10px] tracking-wider text-ink-700 flex items-center justify-between">
+          <span>
+            LAST RUN: ${lastRun.costUsd.toFixed(2)} ({lastRun.mode.toLowerCase()})
+          </span>
+          <span className="text-ink-500">
+            {lastRun.inputTokens.toLocaleString()} in · {lastRun.outputTokens.toLocaleString()} out
+          </span>
         </div>
       )}
 
