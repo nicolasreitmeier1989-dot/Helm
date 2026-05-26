@@ -58,7 +58,6 @@ export function CombatScreen({ sim, onComplete }: Props) {
       } else if (phase === "playerStrike") {
         setHitFlash("competitor");
         if (chosen) playHit(chosen.competitorResponse.intensity);
-        // apply intermediate state? we just snap to final at counter
         setPhase("counterStrike");
       } else if (phase === "counterStrike") {
         setHitFlash("player");
@@ -69,7 +68,6 @@ export function CombatScreen({ sim, onComplete }: Props) {
         }
         setPhase("resolved");
       } else if (phase === "resolved") {
-        // Next round or finish
         if (roundIdx >= sim.rounds.length - 1) {
           onComplete(
             chosen?.playerStateAfter ?? playerStats,
@@ -125,25 +123,36 @@ export function CombatScreen({ sim, onComplete }: Props) {
         }}
       />
 
-      {/* HUD top bar */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-white/10">
-        <div className="font-mono text-[10px] tracking-[0.3em] text-white/40">
-          10X // WFC — WAR ROOM
-        </div>
-        <div className="text-center">
-          <div className="font-mono text-[10px] tracking-[0.4em] text-white/40">
-            ROUND {round.roundNumber} / 5 · {round.quarterLabel.toUpperCase()}
+      {/* HUD top bar — now BIGGER round indicator + chunked progress */}
+      <header className="relative z-10 px-4 md:px-6 py-3 md:py-4 border-b border-white/15">
+        <div className="flex items-center justify-between gap-4">
+          <div className="font-mono text-[10px] tracking-[0.3em] text-white/40 hidden md:block">
+            10X // WFC — WAR ROOM
           </div>
-        </div>
-        <div className="flex gap-0.5">
-          {sim.rounds.map((_, i) => (
-            <span
-              key={i}
-              className={`block w-6 h-0.5 ${
-                i < roundIdx ? "bg-white/50" : i === roundIdx ? "bg-white" : "bg-white/10"
-              }`}
-            />
-          ))}
+          <div className="flex-1 text-center">
+            <div className="font-black text-base md:text-xl tracking-tight">
+              ROUND {round.roundNumber}
+              <span className="text-white/40"> / 5</span>
+            </div>
+            <div className="font-mono text-[10px] tracking-[0.3em] text-white/50 mt-0.5">
+              {round.quarterLabel.toUpperCase()}
+            </div>
+          </div>
+          {/* Chunked progress: 5 blocks, filled if past or current */}
+          <div className="flex gap-1">
+            {sim.rounds.map((_, i) => (
+              <span
+                key={i}
+                className={`block w-3 md:w-4 h-2 md:h-2.5 transition-colors ${
+                  i < roundIdx
+                    ? "bg-white"
+                    : i === roundIdx
+                    ? "bg-white animate-pulse"
+                    : "bg-white/15"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </header>
 
@@ -163,22 +172,13 @@ export function CombatScreen({ sim, onComplete }: Props) {
         />
 
         {/* Center: phase-dependent overlays */}
-        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-          {phase === "setup" && (
-            <SetupCard round={round} />
-          )}
+        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center px-4">
+          {phase === "setup" && <SetupCard round={round} />}
           {phase === "playerStrike" && chosen && (
-            <MoveCardAnimated
-              move={chosen.playerMove}
-              from="left"
-              isPlayer
-            />
+            <MoveCardAnimated move={chosen.playerMove} from="left" isPlayer />
           )}
           {phase === "counterStrike" && chosen && (
-            <MoveCardAnimated
-              move={chosen.competitorResponse}
-              from="right"
-            />
+            <MoveCardAnimated move={chosen.competitorResponse} from="right" />
           )}
           {phase === "resolved" && chosen && (
             <ExchangeNarrative narrative={chosen.exchangeNarrative} />
@@ -187,9 +187,7 @@ export function CombatScreen({ sim, onComplete }: Props) {
       </div>
 
       {/* Action menu (only during choosing) */}
-      {phase === "choosing" && (
-        <ChoiceMenu round={round} onChoose={handleChoose} />
-      )}
+      {phase === "choosing" && <ChoiceMenu round={round} onChoose={handleChoose} />}
     </div>
   );
 }
@@ -211,12 +209,12 @@ function CombatantPanel({
   const accent = side === "player" ? "#ffffff" : "#dc2626";
   return (
     <div
-      className={`relative h-full p-6 md:p-10 flex flex-col ${align} transition-colors duration-150`}
+      className={`relative h-full p-4 md:p-10 flex flex-col ${align} transition-colors duration-150`}
       style={{ backgroundColor: flash ? `${accent}1a` : "transparent" }}
     >
       <div className={`${side === "competitor" ? "self-end" : "self-start"}`}>
         <div
-          className="text-7xl md:text-9xl mb-3 font-black leading-none transition-transform duration-200"
+          className="text-6xl md:text-9xl mb-3 font-black leading-none transition-transform duration-200"
           style={{
             color: accent,
             transform: flash ? "scale(1.12) rotate(-1deg)" : "scale(1)",
@@ -225,18 +223,18 @@ function CombatantPanel({
         >
           {combatant.sigil}
         </div>
-        <div className="font-mono text-[10px] tracking-[0.4em] text-white/40 mb-1">
+        <div className="font-mono text-[9px] md:text-[10px] tracking-[0.3em] md:tracking-[0.4em] text-white/40 mb-1">
           {side === "player" ? "YOU" : "WORST FEARED COMPETITOR"}
         </div>
-        <div className="font-black text-3xl md:text-4xl tracking-tight leading-none">
+        <div className="font-black text-2xl md:text-4xl tracking-tight leading-none">
           {combatant.name}
         </div>
-        <div className="text-white/50 text-sm mt-1.5 max-w-xs">
+        <div className="hidden md:block text-white/50 text-sm mt-1.5 max-w-xs">
           {combatant.archetype}
         </div>
       </div>
 
-      <div className="mt-6 w-full max-w-[280px] space-y-2">
+      <div className="mt-4 md:mt-6 w-full max-w-[280px] space-y-1.5 md:space-y-2">
         <StatBar label="HP"      value={stats.hp}      color={accent} primary />
         <StatBar label="CAPITAL" value={stats.capital} color={accent} />
         <StatBar label="SPEED"   value={stats.speed}   color={accent} />
@@ -244,7 +242,7 @@ function CombatantPanel({
         <StatBar label="IP"      value={stats.ip}      color={accent} />
       </div>
 
-      <div className="mt-5 w-full max-w-[280px]">
+      <div className="hidden md:block mt-5 w-full max-w-[280px]">
         <div className="font-mono text-[10px] tracking-[0.3em] text-white/30 mb-1.5">
           CAPABILITIES
         </div>
@@ -281,7 +279,7 @@ function StatBar({
         <span>{label}</span>
         <span className={primary ? "text-white font-bold" : ""}>{Math.round(value)}</span>
       </div>
-      <div className={`relative ${primary ? "h-2.5" : "h-1"} bg-white/8 overflow-hidden`}>
+      <div className={`relative ${primary ? "h-2.5" : "h-1"} bg-white/10 overflow-hidden`}>
         <div
           className="absolute inset-y-0 left-0 transition-all duration-700 ease-out"
           style={{
@@ -297,17 +295,17 @@ function StatBar({
 
 function SetupCard({ round }: { round: Round }) {
   return (
-    <div className="max-w-2xl text-center px-6" style={{ animation: "fadeInScale 0.5s ease-out" }}>
+    <div className="max-w-2xl text-center px-4" style={{ animation: "fadeInScale 0.5s ease-out" }}>
       <div className="font-mono text-[10px] tracking-[0.5em] text-white/40 mb-3">
         ROUND {round.roundNumber}
       </div>
-      <div className="font-black text-5xl md:text-7xl tracking-tighter leading-[0.9] mb-6">
+      <div className="font-black text-4xl md:text-7xl tracking-tighter leading-[0.9] mb-6">
         {round.quarterLabel.toUpperCase()}
       </div>
-      <div className="text-white/80 text-base md:text-lg leading-relaxed max-w-xl mx-auto">
+      <div className="text-white/85 text-sm md:text-lg leading-relaxed max-w-xl mx-auto">
         {round.setupNarrative}
       </div>
-      <div className="mt-5 font-mono text-[11px] tracking-[0.2em] text-red-500 uppercase">
+      <div className="mt-5 font-mono text-[10px] md:text-[11px] tracking-[0.2em] text-red-500 uppercase">
         ◆ {round.competitorTell}
       </div>
     </div>
@@ -326,7 +324,7 @@ function MoveCardAnimated({
   const color = isPlayer ? "#ffffff" : "#dc2626";
   return (
     <div
-      className="relative w-80 max-w-sm p-5 border bg-black/95 backdrop-blur"
+      className="relative w-72 md:w-80 max-w-sm p-4 md:p-5 border bg-black/95 backdrop-blur"
       style={{
         borderColor: color,
         boxShadow: `0 0 60px ${color}50, inset 0 0 20px ${color}20`,
@@ -336,7 +334,7 @@ function MoveCardAnimated({
       <div className="font-mono text-[10px] tracking-[0.3em] mb-2" style={{ color }}>
         {isPlayer ? "YOU →" : "← COMPETITOR"} · {move.category.toUpperCase()} · INTENSITY {move.intensity}
       </div>
-      <div className="font-black text-2xl tracking-tight leading-tight mb-3">
+      <div className="font-black text-xl md:text-2xl tracking-tight leading-tight mb-3">
         {move.name}
       </div>
       <div className="text-white/80 text-sm leading-relaxed">{move.narrative}</div>
@@ -347,13 +345,13 @@ function MoveCardAnimated({
 function ExchangeNarrative({ narrative }: { narrative: string }) {
   return (
     <div
-      className="max-w-2xl text-center px-6"
+      className="max-w-2xl text-center px-4"
       style={{ animation: "fadeInScale 0.5s ease-out" }}
     >
       <div className="font-mono text-[10px] tracking-[0.4em] text-white/40 mb-3">
         ▼ EXCHANGE
       </div>
-      <div className="text-white text-xl md:text-2xl leading-relaxed font-light max-w-xl mx-auto italic">
+      <div className="text-white text-lg md:text-2xl leading-relaxed font-light max-w-xl mx-auto italic">
         &ldquo;{narrative}&rdquo;
       </div>
     </div>
@@ -369,18 +367,19 @@ function ChoiceMenu({
 }) {
   const count = round.choices.length;
   return (
-    <div className="relative z-20 bg-black border-t border-white/15 px-4 py-4">
+    <div className="relative z-20 bg-black border-t border-white/20 px-3 md:px-4 py-3 md:py-4">
       <div className="flex items-center justify-between mb-3 max-w-7xl mx-auto px-2">
-        <div className="font-mono text-[10px] tracking-[0.4em] text-white/60">
+        <div className="font-mono text-[10px] tracking-[0.4em] text-white/70">
           ▼ YOUR MOVE — PICK ONE
         </div>
-        <div className="font-mono text-[10px] tracking-[0.3em] text-white/30">
-          {count} OPTION{count === 1 ? "" : "S"} AVAILABLE
+        <div className="font-mono text-[10px] tracking-[0.3em] text-white/40">
+          {count} OPTION{count === 1 ? "" : "S"}
         </div>
       </div>
+      {/* Mobile: stack vertically. Desktop: grid by count. */}
       <div
-        className="grid gap-2 max-w-7xl mx-auto"
-        style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
+        className="grid gap-2 max-w-7xl mx-auto grid-cols-1 md:[grid-template-columns:repeat(var(--count),minmax(0,1fr))]"
+        style={{ ["--count" as never]: count }}
       >
         {round.choices.map((c, i) => (
           <ChoiceCard key={c.id} choice={c} index={i + 1} onChoose={onChoose} />
@@ -414,7 +413,7 @@ function ChoiceCard({
   return (
     <button
       onClick={() => onChoose(choice.id)}
-      className="group text-left p-4 border border-white/15 bg-white/0 hover:bg-white hover:text-black hover:border-white transition-colors"
+      className="group text-left p-3 md:p-4 border border-white/15 bg-white/0 hover:bg-white hover:text-black hover:border-white transition-colors"
       style={{ animation: `fadeInScale ${0.3 + index * 0.07}s ease-out` }}
     >
       <div className="flex items-baseline justify-between gap-2 mb-1.5">
@@ -425,7 +424,7 @@ function ChoiceCard({
           {choice.category.toUpperCase()} · {INTENSITY_LABEL[choice.intensity]}
         </span>
       </div>
-      <div className="font-black text-lg md:text-xl tracking-tight leading-tight mb-2">
+      <div className="font-black text-base md:text-xl tracking-tight leading-tight mb-2">
         {choice.label}
       </div>
       <div className="text-[12.5px] text-white/70 group-hover:text-black/80 leading-relaxed mb-3">
