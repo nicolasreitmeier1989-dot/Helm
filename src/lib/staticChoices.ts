@@ -1,4 +1,4 @@
-// HELM — static choice library (Phase 6).
+// WFC — static choice library (Phase 6).
 //
 // Hand-curated option lists per questionId. Used by ChoiceGenerator as the
 // no-API-key fallback path. Each entry mirrors the ChoiceOption shape used

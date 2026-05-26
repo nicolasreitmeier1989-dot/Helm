@@ -1,4 +1,4 @@
-// HELM — defender option library (Phase 4.5).
+// WFC — defender option library (Phase 4.5).
 //
 // Seven canonical stances an incumbent can take against an AI-native
 // challenger. Each carries:

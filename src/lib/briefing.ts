@@ -1,4 +1,4 @@
-// HELM — briefing payload helpers. The /briefing page reads the active
+// WFC — briefing payload helpers. The /briefing page reads the active
 // simulation from sessionStorage (set by the main page right before opening
 // the print view).
 //
@@ -8,7 +8,7 @@
 import type { Simulation } from "./types";
 import type { WFCContext } from "./store";
 
-const KEY = "helm:briefing:v1";
+const KEY = "wfc:briefing:v1";
 
 export interface BriefingPayload {
   sim: Simulation;

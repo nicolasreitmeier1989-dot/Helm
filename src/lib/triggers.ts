@@ -1,4 +1,4 @@
-// HELM — trigger state machine + Bayesian trajectory inference.
+// WFC — trigger state machine + Bayesian trajectory inference.
 //
 // A Trigger is a watchpoint over an Indicator attached to an OPPONENT MoveNode.
 // When an analyst observes evidence in the wild (a press release, a filing,
@@ -14,7 +14,7 @@ import type {
   TriggerState,
 } from "./types";
 
-const STORE_KEY = "helm:triggers:v1";
+const STORE_KEY = "wfc:triggers:v1";
 
 interface TriggerStore {
   triggers: Record<string, Trigger>; // id → trigger

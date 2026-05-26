@@ -1,8 +1,8 @@
 {
-  "name": "helm",
+  "name": "wfc",
   "version": "0.1.0",
   "private": true,
-  "description": "HELM — Adversarial Strategy Simulation Engine",
+  "description": "WFC — Adversarial Strategy Simulation Engine",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

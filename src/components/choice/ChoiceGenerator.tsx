@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — ChoiceGenerator (Phase 6).
+// WFC — ChoiceGenerator (Phase 6).
 //
 // Wraps a single strategic question + a dynamic option list + LLM call
 // lifecycle. Used by every wizard step to surface options the user can

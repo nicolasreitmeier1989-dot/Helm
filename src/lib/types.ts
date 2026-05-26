@@ -1,4 +1,4 @@
-// HELM — domain model for adversarial strategy simulation.
+// WFC — domain model for adversarial strategy simulation.
 //
 // v0.3 introduces a three-layer Strategic Topology that replaces the implicit
 // "category"-driven model. Both OUR profile and the OPPONENT profile carry a

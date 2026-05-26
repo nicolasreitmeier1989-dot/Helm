@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — landing (Phase 4).
+// WFC — landing (Phase 4).
 //
 // First door into the app. Friendly, spacious, single column. No dense
 // chrome, no live ticker, no SESSION code. The dashboard's deep-tech
@@ -34,7 +34,7 @@ export function Landing() {
   }, []);
 
   const handleTryExample = () => {
-    // Materialise the HELM CORP / MERIDIAN demo as a real project and
+    // Materialise the WFC CORP / MERIDIAN demo as a real project and
     // mark it active before sending the user to /dashboard.
     const now = new Date().toISOString();
     const demo: Project = {
@@ -71,7 +71,7 @@ export function Landing() {
 
           <header className="mb-12">
             <div className="font-mono text-[10px] tracking-widest text-ink-500 mb-3">
-              HELM // STRATEGIC FORESIGHT
+              WFC // WORST FEARED COMPETITOR
             </div>
             <h1 className="font-display text-4xl md:text-5xl tracking-tight text-ink-1000 leading-[1.05] mb-4">
               Anticipate the AI-native competitor that will hurt you most.
@@ -80,7 +80,7 @@ export function Landing() {
               Premortem on the disruptor that doesn't exist yet.
             </p>
             <p className="text-[14px] text-ink-600 leading-relaxed mt-3">
-              HELM models your strategy + the most dangerous AI-native
+              WFC models your strategy + the most dangerous AI-native
               challenger across BMC, VPC, capabilities, and 3–5 rounds of
               moves.
             </p>
@@ -115,7 +115,7 @@ export function Landing() {
             <CTACard
               onClick={handleTryExample}
               title="Try with example"
-              subtitle="Open the HELM CORP vs MERIDIAN INDUSTRIES demo — a DACH compliance SaaS facing a well-funded incumbent."
+              subtitle="Open the WFC CORP vs MERIDIAN INDUSTRIES demo — a DACH compliance SaaS facing a well-funded incumbent."
               kicker="DEMO"
             />
             {projects.length > 0 && (
@@ -151,7 +151,7 @@ export function Landing() {
             <p className="font-mono text-[10px] tracking-widest text-ink-500 leading-relaxed">
               For incumbents, the asymmetric threat is not a peer competitor
               but an AI-native challenger — often one that doesn't yet exist.
-              HELM lets you premortem on that team before it shows up. Or map
+              WFC lets you premortem on that team before it shows up. Or map
               your own business and competitor in detail across BMC, VPC,
               capabilities, and 3–5 rounds ahead
               under multiple scenarios.
@@ -161,7 +161,7 @@ export function Landing() {
       </div>
 
       <footer className="border-t border-ink-200 px-6 py-4 flex items-center justify-between text-[10px] font-mono tracking-widest text-ink-500">
-        <span>HELM v0.4 // COMPETITIVE STRATEGY ENGINE</span>
+        <span>WFC v0.4 // COMPETITIVE STRATEGY ENGINE</span>
         <span>OBSERVE · ORIENT · DECIDE · ACT</span>
         <span>© 2026 // ALL ROLLOUTS ARE HYPOTHETICAL</span>
       </footer>

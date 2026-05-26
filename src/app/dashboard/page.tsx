@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — dashboard route (moved here from `/` in Phase 4).
+// WFC — dashboard route (moved here from `/` in Phase 4).
 //
 // This is the dense war-gaming view. Phase 4 keeps all functionality but
 // softens the entry vocabulary so it doesn't feel like a NORAD bunker on
@@ -389,7 +389,7 @@ export default function DashboardPage() {
       </div>
 
       <footer className="border-t border-ink-300 bg-ink-50 px-6 py-3 flex items-center justify-between text-[10px] font-mono tracking-widest text-ink-500">
-        <span>HELM // COMPETITIVE STRATEGY ENGINE</span>
+        <span>WFC // COMPETITIVE STRATEGY ENGINE</span>
         <span>OBSERVE · ORIENT · DECIDE · ACT</span>
         <span>© 2026 // ALL ROLLOUTS ARE HYPOTHETICAL</span>
       </footer>

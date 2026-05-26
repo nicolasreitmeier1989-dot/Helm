@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard step: Competitor (Phase 6 click-only rewrite).
+// WFC — wizard step: Competitor (Phase 6 click-only rewrite).
 //
 // Two sequential ChoiceGenerators:
 //   1. Industry — single-select from `industry.pick`

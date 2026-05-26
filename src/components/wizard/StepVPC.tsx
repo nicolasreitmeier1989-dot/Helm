@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard step: Value Proposition Canvases (Phase 6 click-only rewrite).
+// WFC — wizard step: Value Proposition Canvases (Phase 6 click-only rewrite).
 //
 // Per customer-segment derived from the BMC step:
 //   - 3 click-rounds for customer-profile (jobs / pains / gains)

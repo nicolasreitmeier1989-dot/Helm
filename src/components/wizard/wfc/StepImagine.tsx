@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — WFC wizard step 1: Imagine the fear (Phase 6 click-only rewrite).
+// WFC — WFC wizard step 1: Imagine the fear (Phase 6 click-only rewrite).
 //
 // Three ChoiceGenerators (multi-select, up to 2 picks each). The user
 // clicks the workflow attacks, pricing attacks, and data-flywheel

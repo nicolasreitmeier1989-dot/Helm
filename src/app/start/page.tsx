@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard route (Phase 4 + 4.5 + 6 click-only).
+// WFC — wizard route (Phase 4 + 4.5 + 6 click-only).
 //
 // /start opens with a ModeChooser (WFC / Quick / Deep). Once a mode is
 // picked, the WizardShell drives the user through the steps. The final

@@ -1,4 +1,4 @@
-// HELM — URL fetcher for the COMPETITOR_URL extractor (Phase 5Y.2).
+// WFC — URL fetcher for the COMPETITOR_URL extractor (Phase 5Y.2).
 //
 // Server-side only. Fetches static HTML, strips tags / scripts / styles
 // with a regex pass, and returns up to ~15K chars of plain text plus the
@@ -70,7 +70,7 @@ export async function fetchUrlAsText(url: string): Promise<UrlFetchResult> {
       headers: {
         // Identify as a normal browser; some sites 403 unknown UAs.
         "User-Agent":
-          "Mozilla/5.0 (compatible; HELM-Strategy/0.4; +https://example.com/helm)",
+          "Mozilla/5.0 (compatible; WFC-Strategy/0.4; +https://example.com/wfc)",
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },

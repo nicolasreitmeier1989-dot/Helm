@@ -1,4 +1,4 @@
-// HELM — Anthropic-SDK-based wizard extractors (Phase 4).
+// WFC — Anthropic-SDK-based wizard extractors (Phase 4).
 //
 // Each extractor takes a free-text "describe your business" paragraph from
 // the user and returns a typed object that matches the wizard step's shape.
@@ -157,7 +157,7 @@ export async function extractBMC(description: string): Promise<BMCBlock[]> {
   const raw = (await callClaude({
     systemPrompt: BMC_SYSTEM,
     schema: BMC_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_bmc_extract",
+    schemaName: "wfc_bmc_extract",
     userPayload: JSON.stringify({ description }),
   })) as BMCRaw;
 
@@ -238,7 +238,7 @@ export async function extractVPC(
   const raw = (await callClaude({
     systemPrompt: VPC_SYSTEM,
     schema: VPC_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_vpc_extract",
+    schemaName: "wfc_vpc_extract",
     userPayload: JSON.stringify({
       customerSegment: customerSegmentLabel,
       description,
@@ -363,7 +363,7 @@ export async function extractCapabilities(
   const raw = (await callClaude({
     systemPrompt: CAP_SYSTEM,
     schema: CAP_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_capabilities_extract",
+    schemaName: "wfc_capabilities_extract",
     userPayload: JSON.stringify({ description }),
   })) as CapsRaw;
 
@@ -584,7 +584,7 @@ export async function extractCompetitorBasic(
   const raw = (await callClaude({
     systemPrompt: COMP_SYSTEM,
     schema: COMP_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_competitor_basic_extract",
+    schemaName: "wfc_competitor_basic_extract",
     userPayload: JSON.stringify({ description, ourBusiness: context?.ourBusiness }),
   })) as CompRaw;
 
@@ -844,7 +844,7 @@ export async function extractAINativeCompetitor(
   const raw = (await callClaude({
     systemPrompt: AI_NATIVE_COMP_SYSTEM,
     schema: AI_NATIVE_COMP_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_ai_native_competitor_extract",
+    schemaName: "wfc_ai_native_competitor_extract",
     userPayload,
   })) as CompRaw;
 
@@ -974,7 +974,7 @@ async function extractCompetitorFromSource(
   const raw = (await callClaude({
     systemPrompt: COMP_FROM_SOURCE_SYSTEM,
     schema: COMP_SCHEMA as unknown as Record<string, unknown>,
-    schemaName: "helm_competitor_from_source_extract",
+    schemaName: "wfc_competitor_from_source_extract",
     userPayload,
   })) as CompRaw;
 

@@ -1,4 +1,4 @@
-// HELM — sensitivity sweep. Always uses the local heuristic engine, even when
+// WFC — sensitivity sweep. Always uses the local heuristic engine, even when
 // the main simulation runs via Claude — otherwise a single slider drag would
 // trigger 20+ API calls. The heuristic shares the same scoring inputs so
 // directional reads transfer.

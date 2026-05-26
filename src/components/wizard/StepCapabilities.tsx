@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard step: Capabilities (Phase 6 click-only rewrite).
+// WFC — wizard step: Capabilities (Phase 6 click-only rewrite).
 //
 // One ChoiceGenerator per dimension (PEOPLE / TECH / ORG / PROCESSES),
 // multi-select up to 4. The picked option payloads become CapabilitySet

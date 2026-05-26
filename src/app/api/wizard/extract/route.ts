@@ -1,4 +1,4 @@
-// HELM — wizard AI-Assist extraction endpoint (Phase 4).
+// WFC — wizard AI-Assist extraction endpoint (Phase 4).
 //
 // Accepts { kind, description, context? } and dispatches to the matching
 // extractor in src/lib/extractors.ts. If ANTHROPIC_API_KEY is missing,

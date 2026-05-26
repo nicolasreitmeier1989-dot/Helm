@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard step: Business Model Canvas (Phase 6 click-only rewrite).
+// WFC — wizard step: Business Model Canvas (Phase 6 click-only rewrite).
 //
 // One ChoiceGenerator per Osterwalder block, multi-select up to 3. The
 // picks become BMCBlock entries on the OWN topology with auto-assigned

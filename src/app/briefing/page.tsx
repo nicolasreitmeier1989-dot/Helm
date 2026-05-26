@@ -100,7 +100,7 @@ export default function BriefingPage() {
           <header className="border-b-2 border-black pb-4 mb-6 flex items-end justify-between">
             <div>
               <div className="font-mono text-[10px] tracking-widest text-neutral-500">
-                HELM // ADVERSARIAL STRATEGY BRIEFING
+                WFC // ADVERSARIAL STRATEGY BRIEFING
               </div>
               <h1 className="text-3xl font-semibold tracking-tight mt-1">
                 Board Memo · {sim.competitor.name}
@@ -338,7 +338,7 @@ export default function BriefingPage() {
           </section>
 
           <div className="font-mono text-[9px] text-neutral-500 mt-8 pt-4 border-t border-neutral-300 tracking-widest flex justify-between">
-            <span>HELM // CONFIDENTIAL — INTERNAL USE ONLY</span>
+            <span>WFC // CONFIDENTIAL — INTERNAL USE ONLY</span>
             <span>SEITE 1 / 2</span>
           </div>
         </section>
@@ -350,7 +350,7 @@ export default function BriefingPage() {
         <section className="mx-auto max-w-[210mm] p-10 print:p-0">
           <header className="border-b-2 border-black pb-4 mb-6">
             <div className="font-mono text-[10px] tracking-widest text-neutral-500">
-              HELM // BRIEFING · TEIL 2
+              WFC // BRIEFING · TEIL 2
             </div>
             <h1 className="text-2xl font-semibold tracking-tight mt-1">
               Counter-Move Playbook
@@ -423,7 +423,7 @@ export default function BriefingPage() {
               METHODIK
             </h2>
             <p className="text-[10.5px] text-neutral-700 leading-relaxed">
-              HELM modelliert beide Seiten als drei-Schicht-Strategic-Topology
+              WFC modelliert beide Seiten als drei-Schicht-Strategic-Topology
               (Capabilities · Business Model Canvas · Value Proposition Canvas).
               Gegnerische Züge werden als Topology-Deltas auf der gegnerischen
               Topologie generiert; Threat wird aus der Kollision dieser Deltas
@@ -437,7 +437,7 @@ export default function BriefingPage() {
           </section>
 
           <div className="font-mono text-[9px] text-neutral-500 mt-8 pt-4 border-t border-neutral-300 tracking-widest flex justify-between">
-            <span>HELM // CONFIDENTIAL — INTERNAL USE ONLY</span>
+            <span>WFC // CONFIDENTIAL — INTERNAL USE ONLY</span>
             <span>SEITE 2 / 2</span>
           </div>
         </section>

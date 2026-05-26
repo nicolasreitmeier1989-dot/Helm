@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — ChoiceCard primitive (Phase 6).
+// WFC — ChoiceCard primitive (Phase 6).
 //
 // A single clickable option card used by ChoiceGenerator and by any
 // click-only wizard step. Monochrome ink-* palette, sharp corners,

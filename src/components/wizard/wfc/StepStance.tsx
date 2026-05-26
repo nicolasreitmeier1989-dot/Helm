@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — WFC wizard step 4: Stance (Phase 6 click-only rewrite).
+// WFC — WFC wizard step 4: Stance (Phase 6 click-only rewrite).
 //
 // Seven defender-option cards (single-select, radio-style). Picking a
 // stance auto-prefills the Rumelt-kernel triple based on the chosen

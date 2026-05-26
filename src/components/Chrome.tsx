@@ -30,7 +30,7 @@ export function TopBar({
         <div className="flex items-center justify-between px-6 h-12 max-w-6xl mx-auto w-full">
           <div className="flex items-center gap-2">
             <Glyph />
-            <span className="font-mono text-[11px] tracking-widest text-ink-900">HELM</span>
+            <span className="font-mono text-[11px] tracking-widest text-ink-900">WFC</span>
             <span className="font-mono text-[10px] tracking-widest text-ink-500">v0.4</span>
           </div>
           <div className="flex items-center gap-4 text-[10px] font-mono tracking-wider text-ink-500">
@@ -53,7 +53,7 @@ export function TopBar({
           <div className="flex items-center gap-2">
             <a href="/" className="flex items-center gap-2 group">
               <Glyph />
-              <span className="font-mono text-[11px] tracking-widest text-ink-900 group-hover:text-ink-1000">HELM</span>
+              <span className="font-mono text-[11px] tracking-widest text-ink-900 group-hover:text-ink-1000">WFC</span>
             </a>
             <span className="font-mono text-[10px] tracking-widest text-ink-500">// COMPETITIVE STRATEGY ENGINE</span>
           </div>
@@ -94,7 +94,7 @@ function Glyph() {
 
 function Ticker() {
   const items = [
-    "STRATEGIC FORESIGHT v0.4 ACTIVE",
+    "WORST FEARED COMPETITOR v0.4 ACTIVE",
     "MULTI-SCENARIO ROLLOUT ENABLED",
     "FORWARD-PLANNING TREE / HORIZON 3–5 ROUNDS",
     "COMPETITOR MODEL // BAYES-WEIGHTED PRIORS",

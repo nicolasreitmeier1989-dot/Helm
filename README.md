@@ -1,15 +1,15 @@
-# HELM // Adversarial Strategy Simulation Engine
+# WFC // Adversarial Strategy Simulation Engine
 
 Software für Unternehmen, um taktische und strategische Entscheidungen
 von Wettbewerbern über mehrere Runden und Szenarien zu simulieren.
-HELM erlaubt es, **3–5 Züge vorauszudenken** und so eine langfristige,
+WFC erlaubt es, **3–5 Züge vorauszudenken** und so eine langfristige,
 weniger sichtbare Strategie zu fahren, bei der die wahrscheinlichen
 Reaktionen des Gegners bereits eingepreist sind.
 
 ## Konzept
 
 Klassische strategische Planung ist reaktiv: man entscheidet, der
-Wettbewerber antwortet, man passt an. HELM dreht das um. Aus
+Wettbewerber antwortet, man passt an. WFC dreht das um. Aus
 beobachteten Signalen, Posture, Kriegskasse, Markenmacht und
 Leadership-Bias des Gegners wird ein **probabilistischer Spielbaum**
 erzeugt, in dem sich Eigenzüge und gegnerische Antworten über mehrere

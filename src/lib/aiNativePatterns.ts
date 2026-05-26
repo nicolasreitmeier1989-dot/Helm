@@ -1,4 +1,4 @@
-// HELM — AI-native attack patterns (Phase 4.5).
+// WFC — AI-native attack patterns (Phase 4.5).
 //
 // Seven disruption playbooks the user can pick from in the WFC ("Worst
 // Feared AI-Native Competitor") wizard. Each pattern carries:

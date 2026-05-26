@@ -1,4 +1,4 @@
-// HELM — Phase 5X.1 white-cell adjudication.
+// WFC — Phase 5X.1 white-cell adjudication.
 //
 // Separates strategic INTENT from operational EFFECT. A senior planner who
 // reads `threat = 80` should not internalize that the M&A move WILL happen

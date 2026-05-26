@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — WFC wizard step 3: Exposure (Phase 4.5).
+// WFC — WFC wizard step 3: Exposure (Phase 4.5).
 //
 // Reviews and edits the auto-generated exposure derived from the chosen
 // pattern. Two columns: left lists OUR BMC blocks the pattern attacks

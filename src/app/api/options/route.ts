@@ -1,4 +1,4 @@
-// HELM — choice-generator endpoint (Phase 6).
+// WFC — choice-generator endpoint (Phase 6).
 //
 // POST /api/options
 //
@@ -30,7 +30,7 @@ function configured(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
 }
 
-const SYSTEM_PROMPT = `You are HELM's choice generator. For a given strategic question and prior-answer context, produce {count} short, distinct, plausible options that a strategist can click. Each option has a snappy label (3-7 words), an optional one-sentence description, and a payload object representing the underlying selection. Options must be mutually distinct. Exclude the labels in {exclude}. When {refine} is true, deliberately vary the angle from your previous suggestions — different framing, different scope, different posture.
+const SYSTEM_PROMPT = `You are WFC's choice generator. For a given strategic question and prior-answer context, produce {count} short, distinct, plausible options that a strategist can click. Each option has a snappy label (3-7 words), an optional one-sentence description, and a payload object representing the underlying selection. Options must be mutually distinct. Exclude the labels in {exclude}. When {refine} is true, deliberately vary the angle from your previous suggestions — different framing, different scope, different posture.
 
 Hard rules:
 - Output STRICT JSON matching the provided schema. No prose, no markdown.

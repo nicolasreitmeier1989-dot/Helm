@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard shell (Phase 4).
+// WFC — wizard shell (Phase 4).
 //
 // Sticky top: progress bar + step count + small "Save & exit" link.
 // Sticky bottom: Back / Skip / Next nav. Each step renders centered with

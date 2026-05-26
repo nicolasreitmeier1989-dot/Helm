@@ -1,4 +1,4 @@
-// HELM — topology math. Pure functions over StrategicTopology.
+// WFC — topology math. Pure functions over StrategicTopology.
 //
 // Provides:
 //   - vpcFit(vpc):                    0..100 score for how well a value map

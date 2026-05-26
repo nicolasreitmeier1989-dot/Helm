@@ -1,14 +1,14 @@
-// HELM — Calibration Ledger (Phase 5Y.1).
+// WFC — Calibration Ledger (Phase 5Y.1).
 //
 // Every OPPONENT move node in a generated simulation is implicitly a
 // prediction: "We think there is an N% chance the competitor will do X."
 // Today we throw those away on re-roll. The Calibration Ledger captures
 // them, lets the operator mark them HAPPENED / PARTIAL / DID_NOT_HAPPEN
-// when reality plays out, and computes a rolling Brier score so HELM's
+// when reality plays out, and computes a rolling Brier score so WFC's
 // forecasting discipline is visible — and improvable — over time.
 //
 // Storage is intentionally self-contained: localStorage under
-// `helm:predictions:v1`. No dependency on the project store; predictions
+// `wfc:predictions:v1`. No dependency on the project store; predictions
 // outlive the projects they were extracted from. Module is SSR-safe
 // (every entry point no-ops when `window` is missing).
 
@@ -46,7 +46,7 @@ export interface CalibrationStats {
   recentlyEvaluated: Prediction[]; // last 10 evaluations
 }
 
-const STORE_KEY = "helm:predictions:v1";
+const STORE_KEY = "wfc:predictions:v1";
 
 // ---------- raw persistence ----------
 

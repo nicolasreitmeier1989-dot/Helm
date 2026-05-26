@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard mode chooser (Phase 4 + 4.5).
+// WFC — wizard mode chooser (Phase 4 + 4.5).
 //
 // First screen of /start. The user picks between WFC (the AI-native
 // premortem path — visually emphasised on top), Quick (3 steps) or Deep
@@ -25,7 +25,7 @@ export function ModeChooser({ onPick }: { onPick: (mode: WizardMode) => void }) 
               Which door are you walking through?
             </h1>
             <p className="text-[15px] text-ink-700 leading-relaxed">
-              The premortem is HELM's distinctive path — pick it if you want to
+              The premortem is WFC's distinctive path — pick it if you want to
               face the AI-native challenger that scares you most. Or map your
               own business in the Quick / Deep modes below.
             </p>

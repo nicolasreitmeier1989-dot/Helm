@@ -1,4 +1,4 @@
-// HELM — client-side persistence (localStorage). Projects + version history.
+// WFC — client-side persistence (localStorage). Projects + version history.
 //
 // v0.3 bumps the store key to v2 because OwnProfile/CompetitorProfile now
 // carry full StrategicTopology + Rumelt-kernel fields. Loading from a legacy
@@ -17,8 +17,8 @@ import type {
   StrategicTopology,
 } from "./types";
 
-const STORE_KEY = "helm:projects:v2";
-const LEGACY_STORE_KEY = "helm:projects:v1";
+const STORE_KEY = "wfc:projects:v2";
+const LEGACY_STORE_KEY = "wfc:projects:v1";
 
 // ---------- v0.3F migration: legacy capabilities (flat list, dimension on
 // the capability) → set-based topology with Legacy sets per dimension. ----
@@ -50,7 +50,7 @@ function migrateTopology(topology: unknown): StrategicTopology {
   if (!legacyMigrationWarned) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[HELM] Legacy topology detected (capabilities without setId). Migrating to Legacy CapabilitySets.",
+      "[WFC] Legacy topology detected (capabilities without setId). Migrating to Legacy CapabilitySets.",
     );
     legacyMigrationWarned = true;
   }
@@ -190,7 +190,7 @@ export function loadStore(): Store {
           // knows their project names existed.
           // eslint-disable-next-line no-console
           console.warn(
-            "[HELM] Detected legacy v1 store with",
+            "[WFC] Detected legacy v1 store with",
             v1.projects.length,
             "projects. v0.3 schema is not auto-migratable — please re-save.",
           );
@@ -225,7 +225,7 @@ export function createProject(name: string, p: Project["competitor"]): Project {
     updatedAt: now,
     competitor: p,
     own: {
-      name: "HELM CORP",
+      name: "WFC CORP",
       intent: "",
       diagnosis: "",
       guidingPolicy: "",

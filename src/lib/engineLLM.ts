@@ -1,4 +1,4 @@
-// HELM — Claude-backed strategic reasoner (v0.3).
+// WFC — Claude-backed strategic reasoner (v0.3).
 //
 // Returns the same Simulation shape as the local heuristic, so the UI is
 // identical regardless of backend. Updated for the topology model: each move
@@ -26,7 +26,7 @@ import type {
 
 // ---------- Static prompt material ----------
 
-const SYSTEM_PROMPT = `You are HELM, an adversarial strategy reasoner for corporate competitive intelligence.
+const SYSTEM_PROMPT = `You are WFC, an adversarial strategy reasoner for corporate competitive intelligence.
 
 You simulate how a specific competitor will respond to our opening move across multiple rounds and multiple
 scenarios, then recommend our counter-moves. You think like a game-theory analyst combined with a top-tier
@@ -236,7 +236,7 @@ async function runDirectPipeline(input: SimulateLLMInput): Promise<Simulation> {
       effort: "high",
       format: {
         type: "json_schema",
-        name: "helm_simulation",
+        name: "wfc_simulation",
         schema: SIMULATION_SCHEMA as unknown as Record<string, unknown>,
       },
     },
@@ -964,7 +964,7 @@ async function runAdjudicatedPipeline(
             client,
             RED_SYSTEM_PROMPT,
             redPayload,
-            "helm_red",
+            "wfc_red",
             RED_SCHEMA as unknown as Record<string, unknown>,
             usage,
           )) as { moves: RedMoveOut[] };
@@ -988,7 +988,7 @@ async function runAdjudicatedPipeline(
             client,
             WHITE_SYSTEM_PROMPT,
             whitePayload,
-            "helm_white",
+            "wfc_white",
             WHITE_SCHEMA as unknown as Record<string, unknown>,
             usage,
           )) as { adjudications: WhiteAdjOut[] };
@@ -1091,7 +1091,7 @@ async function runAdjudicatedPipeline(
             client,
             BLUE_SYSTEM_PROMPT,
             bluePayload,
-            "helm_blue",
+            "wfc_blue",
             BLUE_SCHEMA as unknown as Record<string, unknown>,
             usage,
           )) as { responses: BlueResponseOut[] };

@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — WFC wizard step 2: Pattern (Phase 6 click-only rewrite).
+// WFC — WFC wizard step 2: Pattern (Phase 6 click-only rewrite).
 //
 // 2-column grid of attack-pattern cards. The user picks 1 or 2 patterns
 // (toggle behaviour). The PRIMARY pick drives template generation; a

@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — AIAssistButton (DEPRECATED in Phase 6).
+// WFC — AIAssistButton (DEPRECATED in Phase 6).
 //
 // Previously this rendered an "describe and let Claude fill" overlay with
 // a textarea / URL field. The Phase 6 click-only rewrite removed every

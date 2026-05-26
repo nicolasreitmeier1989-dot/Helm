@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HELM // Strategic Foresight",
+  title: "WFC // Worst Feared Competitor",
   description:
     "Map your business, anticipate your competitor, decide your next move. Strategic foresight across BMC, VPC, capabilities and multi-round rollouts.",
 };

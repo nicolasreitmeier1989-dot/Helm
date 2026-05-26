@@ -1,4 +1,4 @@
-// HELM — delta-driven move-tree generator (v0.3).
+// WFC — delta-driven move-tree generator (v0.3).
 //
 // Replaces the static MOVE_LIBRARY heuristic with a topology-aware generator.
 // For each OPPONENT move it identifies a strategic target on the opponent's

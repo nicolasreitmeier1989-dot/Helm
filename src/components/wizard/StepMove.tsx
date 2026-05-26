@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — wizard step: Your move (Phase 6 click-only rewrite).
+// WFC — wizard step: Your move (Phase 6 click-only rewrite).
 //
 // Three sequential ChoiceGenerators (single-select) for Rumelt's kernel:
 // diagnosis → guiding policy → opening move. Each subsequent question

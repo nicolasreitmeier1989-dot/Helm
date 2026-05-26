@@ -1,4 +1,4 @@
-// HELM — root page (Phase 4).
+// WFC — root page (Phase 4).
 //
 // What used to live at `/` (the dense dashboard) has moved to `/dashboard`.
 // `/` is now the user-first landing surface that opens in the user's own

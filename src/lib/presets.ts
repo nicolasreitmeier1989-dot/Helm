@@ -1,4 +1,4 @@
-// HELM — default seeded topologies, profiles, and scenarios.
+// WFC — default seeded topologies, profiles, and scenarios.
 //
 // v0.3F: capabilities are organised into CapabilitySets. Each set carries
 // dimension + lifecycle + era + source, opening up the model so that new
@@ -19,12 +19,12 @@ import type {
 
 const SHARED_SEGMENT_ID = "cs-shared-fin-mid";
 
-// ---------- HELM CORP (us) — vertical-stack DACH compliance SaaS ----------
+// ---------- WFC CORP (us) — vertical-stack DACH compliance SaaS ----------
 
-const HELM_TOPOLOGY: StrategicTopology = {
+const WFC_TOPOLOGY: StrategicTopology = {
   capabilitySets: [
     {
-      id: "cs-regulatory-tradecraft-helm",
+      id: "cs-regulatory-tradecraft-wfc",
       name: "Regulatory Tradecraft",
       dimension: "PEOPLE",
       era: 2012,
@@ -34,7 +34,7 @@ const HELM_TOPOLOGY: StrategicTopology = {
         "BaFin/EBA-Tiefe als persönliche Diziplin — Regulatory-Affairs als Handwerk.",
     },
     {
-      id: "cs-vertical-sales-dach-helm",
+      id: "cs-vertical-sales-dach-wfc",
       name: "Vertical Sales Force DACH",
       dimension: "PEOPLE",
       era: 2015,
@@ -44,7 +44,7 @@ const HELM_TOPOLOGY: StrategicTopology = {
         "Branchen-spezialisierte Account-Executive-Force im deutschsprachigen Raum.",
     },
     {
-      id: "cs-eu-data-eng-helm",
+      id: "cs-eu-data-eng-wfc",
       name: "EU Data Engineering",
       dimension: "TECH",
       era: 2018,
@@ -54,7 +54,7 @@ const HELM_TOPOLOGY: StrategicTopology = {
         "Schrems-II-konforme Datenplattform-Engineering — Residenz, Schlüsselverwaltung, Audit-Trail.",
     },
     {
-      id: "cs-ai-native-ops-helm",
+      id: "cs-ai-native-ops-wfc",
       name: "AI-Native Operations",
       dimension: "TECH",
       era: 2024,
@@ -64,7 +64,7 @@ const HELM_TOPOLOGY: StrategicTopology = {
         "Aufbau einer KI-nativen Betriebs-Schicht (Agents, Inference, Eval) — Battleground.",
     },
     {
-      id: "cs-vertical-org-helm",
+      id: "cs-vertical-org-wfc",
       name: "Vertical Org Model",
       dimension: "ORG",
       era: 2015,
@@ -74,7 +74,7 @@ const HELM_TOPOLOGY: StrategicTopology = {
         "Founder-led, branchenvertikal organisierte Squads (Sales × Eng × Reg).",
     },
     {
-      id: "cs-audit-release-eng-helm",
+      id: "cs-audit-release-eng-wfc",
       name: "Audit-Grade Release Engineering",
       dimension: "PROCESSES",
       era: 2014,
@@ -86,22 +86,22 @@ const HELM_TOPOLOGY: StrategicTopology = {
   ],
   capabilities: [
     // Regulatory Tradecraft (PEOPLE)
-    { id: "hc-p1", setId: "cs-regulatory-tradecraft-helm", label: "EU-Compliance-Engineering-Team", level: 78, importance: 85 },
-    { id: "hc-p3", setId: "cs-regulatory-tradecraft-helm", label: "Regulatory-Affairs Officer (BaFin/EBA)", level: 70, importance: 80 },
+    { id: "hc-p1", setId: "cs-regulatory-tradecraft-wfc", label: "EU-Compliance-Engineering-Team", level: 78, importance: 85 },
+    { id: "hc-p3", setId: "cs-regulatory-tradecraft-wfc", label: "Regulatory-Affairs Officer (BaFin/EBA)", level: 70, importance: 80 },
     // Vertical Sales Force DACH (PEOPLE)
-    { id: "hc-p2", setId: "cs-vertical-sales-dach-helm", label: "DACH Enterprise Account Executives", level: 65, importance: 75 },
+    { id: "hc-p2", setId: "cs-vertical-sales-dach-wfc", label: "DACH Enterprise Account Executives", level: 65, importance: 75 },
     // EU Data Engineering (TECH)
-    { id: "hc-t1", setId: "cs-eu-data-eng-helm", label: "EU-Datenresidenz-Stack (Frankfurt+Zürich)", level: 82, importance: 90 },
-    { id: "hc-t2", setId: "cs-eu-data-eng-helm", label: "Workflow-Engine mit Audit-Trail", level: 68, importance: 70 },
+    { id: "hc-t1", setId: "cs-eu-data-eng-wfc", label: "EU-Datenresidenz-Stack (Frankfurt+Zürich)", level: 82, importance: 90 },
+    { id: "hc-t2", setId: "cs-eu-data-eng-wfc", label: "Workflow-Engine mit Audit-Trail", level: 68, importance: 70 },
     // AI-Native Operations (TECH) — EMERGING battleground
-    { id: "hc-t3", setId: "cs-ai-native-ops-helm", label: "KI-Inferenz auf privater Infra", level: 55, importance: 75 },
-    { id: "hc-t4", setId: "cs-ai-native-ops-helm", label: "Agent-Operations-Layer (intern, Pilot)", level: 35, importance: 80 },
+    { id: "hc-t3", setId: "cs-ai-native-ops-wfc", label: "KI-Inferenz auf privater Infra", level: 55, importance: 75 },
+    { id: "hc-t4", setId: "cs-ai-native-ops-wfc", label: "Agent-Operations-Layer (intern, Pilot)", level: 35, importance: 80 },
     // Vertical Org Model (ORG)
-    { id: "hc-o1", setId: "cs-vertical-org-helm", label: "Flache, founder-led Org", level: 72, importance: 60 },
-    { id: "hc-o2", setId: "cs-vertical-org-helm", label: "Verzahnte Sales/Engineering-Squads", level: 64, importance: 65 },
+    { id: "hc-o1", setId: "cs-vertical-org-wfc", label: "Flache, founder-led Org", level: 72, importance: 60 },
+    { id: "hc-o2", setId: "cs-vertical-org-wfc", label: "Verzahnte Sales/Engineering-Squads", level: 64, importance: 65 },
     // Audit-Grade Release Engineering (PROCESSES)
-    { id: "hc-pr1", setId: "cs-audit-release-eng-helm", label: "SOC2 Type-II + ISO 27001 Audits", level: 80, importance: 85 },
-    { id: "hc-pr2", setId: "cs-audit-release-eng-helm", label: "Quartalsweise Reg-Change-Sprints", level: 70, importance: 70 },
+    { id: "hc-pr1", setId: "cs-audit-release-eng-wfc", label: "SOC2 Type-II + ISO 27001 Audits", level: 80, importance: 85 },
+    { id: "hc-pr2", setId: "cs-audit-release-eng-wfc", label: "Quartalsweise Reg-Change-Sprints", level: 70, importance: 70 },
   ],
   bmc: {
     blocks: [
@@ -262,7 +262,7 @@ const MERIDIAN_TOPOLOGY: StrategicTopology = {
       lifecycle: "EMERGING",
       source: "STANDARD",
       description:
-        "Eigene Workflow-KI-Modelle + Agent-Layer im Aufbau — kollidiert direkt mit HELM-Battleground.",
+        "Eigene Workflow-KI-Modelle + Agent-Layer im Aufbau — kollidiert direkt mit WFC-Battleground.",
     },
     {
       id: "cs-matrix-geo-meridian",
@@ -294,7 +294,7 @@ const MERIDIAN_TOPOLOGY: StrategicTopology = {
     // Hyperscaler Native (TECH)
     { id: "me-t2", setId: "cs-hyperscaler-native-meridian", label: "Multi-Cloud (AWS + Azure)", level: 78, importance: 70 },
     { id: "me-t3", setId: "cs-hyperscaler-native-meridian", label: "EU-Datenresidenz-Optionalität", level: 50, importance: 80 },
-    // AI-Native Operations (TECH) — EMERGING, same name as HELM's set
+    // AI-Native Operations (TECH) — EMERGING, same name as WFC's set
     { id: "me-t1", setId: "cs-ai-native-ops-meridian", label: "Workflow-KI-Plattform (proprietär)", level: 85, importance: 85 },
     { id: "me-p2", setId: "cs-ai-native-ops-meridian", label: "AI/ML Research Org (London/SF)", level: 80, importance: 75 },
     // Matrix Geography (ORG)
@@ -309,7 +309,7 @@ const MERIDIAN_TOPOLOGY: StrategicTopology = {
     blocks: [
       // CUSTOMER_SEGMENTS — uses the SAME shared ID for the overlap
       { id: SHARED_SEGMENT_ID, kind: "CUSTOMER_SEGMENTS", label: "Regulated Finance Mid-Market", strength: 60,
-        description: "Sekundäres Wachstumssegment für Meridian, Hauptzielgebiet für HELM." },
+        description: "Sekundäres Wachstumssegment für Meridian, Hauptzielgebiet für WFC." },
       { id: "me-cs2", kind: "CUSTOMER_SEGMENTS", label: "Global Enterprise (Fortune 500)", strength: 85 },
       { id: "me-cs3", kind: "CUSTOMER_SEGMENTS", label: "Tier-1 Banks (Bulge-Bracket)", strength: 80 },
 
@@ -443,7 +443,7 @@ export const DEFAULT_COMPETITOR: CompetitorProfile = {
 };
 
 export const DEFAULT_OWN: OwnProfile = {
-  name: "HELM CORP",
+  name: "WFC CORP",
   intent:
     "Marktführerschaft im DACH-Enterprise-Segment innerhalb von 18 Monaten durch differenzierte Vertikal-Stack-Strategie.",
   diagnosis:
@@ -454,7 +454,7 @@ export const DEFAULT_OWN: OwnProfile = {
     "Launch Vertikal-Suite für regulierte Finanzkunden mit EU-Datenresidenz und BaFin-Attest",
   horizonRounds: 4,
   branchingFactor: 3,
-  topology: HELM_TOPOLOGY,
+  topology: WFC_TOPOLOGY,
 };
 
 // ---------- Empty / wizard-friendly templates ----------

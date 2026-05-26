@@ -1,6 +1,6 @@
 "use client";
 
-// HELM — Calibration Ledger panel (Phase 5Y.1).
+// WFC — Calibration Ledger panel (Phase 5Y.1).
 //
 // Two tabs:
 //   STATS    — big Brier score + band, three sub-stats, per-scenario
@@ -136,7 +136,7 @@ function EmptyState() {
         mark them HAPPENED / PARTIAL / DIDN'T.
       </p>
       <p className="text-[12.5px] text-ink-700 leading-relaxed">
-        Over time HELM scores how well its forecasts track reality — a rolling
+        Over time WFC scores how well its forecasts track reality — a rolling
         Brier score across all captured predictions.
       </p>
     </div>
