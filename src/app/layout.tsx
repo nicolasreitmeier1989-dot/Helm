@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HELM // Adversarial Strategy Simulation",
+  title: "HELM // Strategic Foresight",
   description:
-    "Anticipate competitor moves 3–5 turns ahead. Tactical & strategic decision simulation across multiple rounds and scenarios.",
+    "Map your business, anticipate your competitor, decide your next move. Strategic foresight across BMC, VPC, capabilities and multi-round rollouts.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

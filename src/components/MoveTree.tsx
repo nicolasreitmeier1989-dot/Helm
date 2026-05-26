@@ -117,7 +117,7 @@ export function MoveTree({
               {r === 0 ? "T0 // OPENING" : `T${r} // ROUND`}
             </span>
             <span className="font-mono text-[10px] text-ink-700">
-              {r === 0 ? "SELF" : r % 2 === 1 ? "OPP" : "SELF"}
+              {r === 0 ? "US" : r % 2 === 1 ? "COMPETITOR" : "US"}
             </span>
           </div>
         ))}
@@ -219,7 +219,10 @@ export function MoveTree({
                 />
               </div>
               {isOpp && (
-                <div className="absolute top-1 right-1 font-mono text-[9px] tracking-wider opacity-80">
+                <div
+                  className="absolute top-1 right-1 font-mono text-[9px] tracking-wider opacity-80"
+                  title="Expected value × probability, scaled 0–100"
+                >
                   T{node.threat}
                 </div>
               )}

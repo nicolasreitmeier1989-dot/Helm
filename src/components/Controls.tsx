@@ -66,7 +66,7 @@ export function OpponentSummary({
     onChange({ ...competitor, [k]: v });
 
   return (
-    <Card title="OPPONENT SUMMARY" meta="LEGACY SIGNALS">
+    <Card title="COMPETITOR SUMMARY" meta="LEGACY SIGNALS">
       <div className="grid grid-cols-1 gap-3">
         <div>
           <Label>Codename / Firma</Label>

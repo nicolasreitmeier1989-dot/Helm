@@ -41,7 +41,7 @@ export function PathPanel({
 }) {
   const paths = topPaths(sim, 5);
   return (
-    <Card title="HIGHEST-RISK TRAJECTORIES" meta="TOP-5">
+    <Card title="TOP RISK PATHS" meta="TOP-5">
       <div className="space-y-2.5">
         {paths.map((p, i) => {
           const opening = sim.nodes[p.ids[0]];
@@ -128,7 +128,7 @@ export function NodeDetail({
 
         <div className="grid grid-cols-2 gap-3">
           <Stat label="THREAT" value={node.threat} hint="0..100" />
-          <Stat label="OPP. COST" value={node.cost} hint="0..100" />
+          <Stat label="COMPETITOR COST" value={node.cost} hint="0..100" />
         </div>
 
         <div>
