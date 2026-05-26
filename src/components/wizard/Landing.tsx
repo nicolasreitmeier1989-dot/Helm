@@ -1,11 +1,11 @@
 "use client";
 
-// WFC — landing (Phase 4).
+// WFC — landing (Phase 5 — War Room reframing).
 //
-// First door into the app. Friendly, spacious, single column. No dense
-// chrome, no live ticker, no SESSION code. The dashboard's deep-tech
-// aesthetic is intentionally absent here — strategists shouldn't feel
-// like they walked into a NORAD bunker just to start a project.
+// Primary entry point is now the WAR ROOM — the 3-year combat simulation.
+// The original wizard / dashboard flow is preserved but demoted as
+// "deep-dive planning tools" for power users who want to run the full
+// BMC/VPC/scenario analysis manually.
 
 import { useEffect, useState } from "react";
 import { TopBar } from "@/components/Chrome";
@@ -26,6 +26,7 @@ export function Landing() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [active, setActive] = useState<Project | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [showDeepDive, setShowDeepDive] = useState(false);
 
   useEffect(() => {
     const s = loadStore();
@@ -34,8 +35,6 @@ export function Landing() {
   }, []);
 
   const handleTryExample = () => {
-    // Materialise the WFC CORP / MERIDIAN demo as a real project and
-    // mark it active before sending the user to /dashboard.
     const now = new Date().toISOString();
     const demo: Project = {
       id: `prj_demo_${Date.now().toString(36)}`,
@@ -77,91 +76,107 @@ export function Landing() {
               Anticipate the AI-native competitor that will hurt you most.
             </h1>
             <p className="text-lg text-ink-700 leading-relaxed">
-              Premortem on the disruptor that doesn't exist yet.
+              Premortem on the disruptor that doesn&apos;t exist yet.
             </p>
             <p className="text-[14px] text-ink-600 leading-relaxed mt-3">
-              WFC models your strategy + the most dangerous AI-native
-              challenger across BMC, VPC, capabilities, and 3–5 rounds of
-              moves.
+              WFC simulates 12 quarters of competitive combat between your
+              business and an AI-native challenger — then tells you what to do
+              this week to shift the outcome.
             </p>
           </header>
 
-          <div className="space-y-3">
-            {/* The star — Worst Feared AI-Native Competitor. */}
-            <a
-              href="/start?mode=wfc"
-              className="block w-full text-left border-l-4 border-ink-900 border-r border-y border-r-ink-900 border-y-ink-900 bg-ink-1000 text-ink-0 px-6 py-6 transition-colors group hover:bg-ink-900"
-            >
-              <div className="flex items-baseline justify-between mb-1.5 gap-3">
-                <span className="text-[20px] tracking-tight text-ink-0 leading-tight">
-                  <span className="text-ink-0 mr-1.5">★</span>
-                  Worst feared AI-native competitor
-                </span>
-                <span className="font-mono text-[10px] tracking-widest text-ink-300 whitespace-nowrap">
-                  PRIMARY · ~5 MIN
-                </span>
-              </div>
-              <p className="text-[14px] leading-relaxed text-ink-200">
-                Pick the pattern that scares you. We'll model their topology
-                and your exposure.
-              </p>
-            </a>
-            <CTACard
-              href="/start"
-              title="Start fresh"
-              subtitle="Map your own business and the move you're considering. Express or deep."
-              kicker="NEW PROJECT"
-            />
-            <CTACard
-              onClick={handleTryExample}
-              title="Try with example"
-              subtitle="Open the WFC CORP vs MERIDIAN INDUSTRIES demo — a DACH compliance SaaS facing a well-funded incumbent."
-              kicker="DEMO"
-            />
-            {projects.length > 0 && (
+          {/* The new primary CTA — War Room. */}
+          <a
+            href="/war"
+            className="block w-full text-left border-2 border-ink-1000 bg-ink-1000 text-ink-0 px-6 py-7 transition-all group hover:bg-red-600 hover:border-red-600 hover:shadow-[0_0_60px_rgba(239,68,68,0.4)]"
+          >
+            <div className="flex items-baseline justify-between mb-2 gap-3">
+              <span className="text-[22px] tracking-tight text-ink-0 leading-tight font-bold">
+                ▶ Enter the War Room
+              </span>
+              <span className="font-mono text-[10px] tracking-widest text-ink-300 whitespace-nowrap">
+                PRIMARY · ~3 MIN
+              </span>
+            </div>
+            <p className="text-[14px] leading-relaxed text-ink-200">
+              Type one paragraph about your business. Watch your worst-feared
+              AI-native competitor attack you across 12 quarters. Get 3 actions
+              you can take this week to survive.
+            </p>
+          </a>
+
+          {/* Secondary: open existing project. */}
+          {projects.length > 0 && (
+            <div className="mt-6">
               <CTACard
                 onClick={() => setShowAllProjects((v) => !v)}
-                title="Open project"
+                title="Open existing project"
                 subtitle={`${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
                 kicker={`${projects.length} SAVED`}
               />
-            )}
+              {showAllProjects && (
+                <div className="ml-6 mt-1 border-l border-ink-300 pl-4 space-y-1.5 py-2">
+                  {projects.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleOpenProject(p.id)}
+                      className="w-full text-left flex items-baseline justify-between gap-4 py-1.5 hover:bg-ink-100 px-2 -mx-2 transition-colors group"
+                    >
+                      <span className="text-[14px] text-ink-900 group-hover:text-ink-1000 truncate">
+                        {p.name}
+                      </span>
+                      <span className="font-mono text-[10px] tracking-wider text-ink-500 shrink-0">
+                        {p.versions.length} VER · {fmtDate(p.updatedAt)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-            {showAllProjects && projects.length > 0 && (
-              <div className="ml-6 mt-1 border-l border-ink-300 pl-4 space-y-1.5 py-2">
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleOpenProject(p.id)}
-                    className="w-full text-left flex items-baseline justify-between gap-4 py-1.5 hover:bg-ink-100 px-2 -mx-2 transition-colors group"
-                  >
-                    <span className="text-[14px] text-ink-900 group-hover:text-ink-1000 truncate">
-                      {p.name}
-                    </span>
-                    <span className="font-mono text-[10px] tracking-wider text-ink-500 shrink-0">
-                      {p.versions.length} VER · {fmtDate(p.updatedAt)}
-                    </span>
-                  </button>
-                ))}
+          {/* Deep-dive tools, collapsed by default. */}
+          <div className="mt-10 pt-6 border-t border-ink-200">
+            <button
+              onClick={() => setShowDeepDive((v) => !v)}
+              className="font-mono text-[10px] tracking-widest text-ink-500 hover:text-ink-900 transition-colors"
+            >
+              {showDeepDive ? "▼" : "▶"} DEEP-DIVE PLANNING TOOLS
+            </button>
+            {showDeepDive && (
+              <div className="mt-4 space-y-3">
+                <p className="text-[13px] text-ink-600 leading-relaxed">
+                  Power-user tools to map your business and the competitor in
+                  detail across BMC, VPC, capabilities, and 3–5 rounds of moves
+                  under multiple scenarios. Use these if you want full control;
+                  otherwise the War Room above does it all for you.
+                </p>
+                <CTACard
+                  href="/start?mode=wfc"
+                  title="Pattern-based threat picker"
+                  subtitle="Pick from a catalog of AI-native competitor archetypes and model your exposure to each."
+                  kicker="DEEP DIVE"
+                />
+                <CTACard
+                  href="/start"
+                  title="Start from scratch"
+                  subtitle="Map your own business and the move you're considering. Express or deep."
+                  kicker="NEW PROJECT"
+                />
+                <CTACard
+                  onClick={handleTryExample}
+                  title="Open the WFC CORP demo"
+                  subtitle="DACH compliance SaaS facing a well-funded incumbent — pre-populated."
+                  kicker="DEMO"
+                />
               </div>
             )}
-          </div>
-
-          <div className="mt-16 pt-8 border-t border-ink-200">
-            <p className="font-mono text-[10px] tracking-widest text-ink-500 leading-relaxed">
-              For incumbents, the asymmetric threat is not a peer competitor
-              but an AI-native challenger — often one that doesn't yet exist.
-              WFC lets you premortem on that team before it shows up. Or map
-              your own business and competitor in detail across BMC, VPC,
-              capabilities, and 3–5 rounds ahead
-              under multiple scenarios.
-            </p>
           </div>
         </div>
       </div>
 
       <footer className="border-t border-ink-200 px-6 py-4 flex items-center justify-between text-[10px] font-mono tracking-widest text-ink-500">
-        <span>WFC v0.4 // COMPETITIVE STRATEGY ENGINE</span>
+        <span>WFC v0.5 // COMPETITIVE STRATEGY ENGINE</span>
         <span>OBSERVE · ORIENT · DECIDE · ACT</span>
         <span>© 2026 // ALL ROLLOUTS ARE HYPOTHETICAL</span>
       </footer>
@@ -215,8 +230,8 @@ function CTACard({
     disabled
       ? "border-ink-200 bg-ink-50 cursor-not-allowed"
       : primary
-        ? "border-ink-900 bg-ink-0 hover:bg-ink-900 hover:text-ink-0"
-        : "border-ink-300 bg-ink-0 hover:border-ink-900"
+      ? "border-ink-900 bg-ink-0 hover:bg-ink-900 hover:text-ink-0"
+      : "border-ink-300 bg-ink-0 hover:border-ink-900"
   }`;
   const body = (
     <>
@@ -226,8 +241,8 @@ function CTACard({
             disabled
               ? "text-ink-400"
               : primary
-                ? "text-ink-1000 group-hover:text-ink-0"
-                : "text-ink-1000"
+              ? "text-ink-1000 group-hover:text-ink-0"
+              : "text-ink-1000"
           }`}
         >
           {title}
@@ -237,8 +252,8 @@ function CTACard({
             disabled
               ? "text-ink-400"
               : primary
-                ? "text-ink-500 group-hover:text-ink-300"
-                : "text-ink-500"
+              ? "text-ink-500 group-hover:text-ink-300"
+              : "text-ink-500"
           }`}
         >
           {kicker}
@@ -249,8 +264,8 @@ function CTACard({
           disabled
             ? "text-ink-400"
             : primary
-              ? "text-ink-700 group-hover:text-ink-200"
-              : "text-ink-700"
+            ? "text-ink-700 group-hover:text-ink-200"
+            : "text-ink-700"
         }`}
       >
         {subtitle}
