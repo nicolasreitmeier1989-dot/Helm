@@ -53,30 +53,34 @@ export function SetupScreen({ onStart, error }: Props) {
 
   return (
     <div className="min-h-screen bg-white text-black flex flex-col">
-      {/* Operator-matching topbar */}
-      <header className="border-b border-black/10 px-6 py-5 flex items-center justify-between">
+      <header className="border-b border-black/10 px-4 md:px-6 py-4 md:py-5 flex items-center justify-between">
         <a href="/" className="font-black text-xl tracking-tight">
           10X
           <span className="ml-2 font-mono text-[10px] tracking-[0.3em] text-black/40 align-middle">
             / WFC
           </span>
         </a>
-        <nav className="font-mono text-[11px] tracking-[0.25em] text-black/60">
+        <a
+          href="https://operator-site-gilt.vercel.app/"
+          className="font-mono text-[11px] tracking-[0.25em] text-black/60 hover:text-black"
+        >
           ← BACK TO OPERATOR
-        </nav>
+        </a>
       </header>
 
-      <div className="flex-1 flex items-start justify-center px-6 pt-14 pb-20">
+      <div className="flex-1 flex items-start justify-center px-4 md:px-6 pt-10 md:pt-14 pb-20">
         <div className="w-full max-w-2xl">
           <div className="mb-10">
             <div className="font-mono text-[10px] tracking-[0.4em] text-black/40 mb-3">
               04 · BOSS BATTLE
             </div>
-            <h1 className="font-black text-5xl md:text-7xl tracking-tighter leading-[0.92]">
+            <h1 className="font-black text-4xl md:text-7xl tracking-tighter leading-[0.92]">
               WORST FEARED<br />
-              COMPETITOR.<br />
-              <span className="text-black/30">FIVE ROUNDS.</span>
+              COMPETITOR.
             </h1>
+            <p className="mt-5 text-red-600 font-mono text-[11px] md:text-xs tracking-[0.25em] uppercase">
+              73% of incumbents lose this fight. Which side are you on Monday?
+            </p>
             <p className="mt-5 text-black/70 text-base md:text-lg leading-relaxed max-w-xl">
               Type one paragraph about your business. We simulate the worst-feared
               AI-native competitor for you, then play it out — five turn-based
@@ -121,9 +125,9 @@ export function SetupScreen({ onStart, error }: Props) {
             <button
               type="submit"
               disabled={!canStart}
-              className="w-full mt-4 py-5 text-base font-mono tracking-[0.3em] bg-black text-white hover:bg-red-600 disabled:bg-black/20 disabled:text-white/60 transition-colors"
+              className="w-full mt-4 py-4 md:py-5 text-sm md:text-base font-mono tracking-[0.3em] bg-black text-white hover:bg-red-600 disabled:bg-black/20 disabled:text-white/60 transition-colors"
             >
-              {canStart ? "LAUNCH BATTLE →" : "FILL ALL FIELDS"}
+              {canStart ? "ENTER THE WAR ROOM →" : "FILL ALL FIELDS"}
             </button>
           </form>
 
@@ -154,9 +158,9 @@ export function SetupScreen({ onStart, error }: Props) {
         </div>
       </div>
 
-      <footer className="border-t border-black/10 px-6 py-4 flex items-center justify-between text-[10px] font-mono tracking-[0.3em] text-black/40">
+      <footer className="border-t border-black/10 px-4 md:px-6 py-4 flex flex-col md:flex-row gap-2 items-center justify-between text-[10px] font-mono tracking-[0.3em] text-black/40">
         <span>10X // WFC v0.5</span>
-        <span>OBSERVE · ORIENT · DECIDE · ACT</span>
+        <span className="hidden md:inline">OBSERVE · ORIENT · DECIDE · ACT</span>
         <span>ALL ROLLOUTS HYPOTHETICAL</span>
       </footer>
     </div>
