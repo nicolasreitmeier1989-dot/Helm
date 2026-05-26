@@ -53,6 +53,48 @@ export interface MoveNode {
   cost: number;                 // 0..100, cost-to-opponent
   counters: string[];           // our suggested counter-moves
   children: string[];
+  indicators?: Indicator[];     // observable leading indicators for this move (OPPONENT only)
+}
+
+// ---------- Indicators & Triggers (Strategic Operations Center) ----------
+
+export type IndicatorSource =
+  | "NEWS"
+  | "HIRING"
+  | "PATENT"
+  | "FILING"
+  | "PRICING"
+  | "CHANNEL"
+  | "REGULATORY"
+  | "CAPITAL"
+  | "SOCIAL";
+
+export interface Indicator {
+  id: string;
+  nodeId: string;            // MoveNode this indicator is attached to
+  label: string;             // short, human-readable headline
+  source: IndicatorSource;   // origin / type of evidence stream
+  description: string;       // 1-line elaboration
+  weight: number;            // 0..1 — how diagnostic this signal is for the parent move
+}
+
+export type TriggerState =
+  | "ARMED"      // monitoring, not fired
+  | "FIRING"     // candidate evidence under review (UI-only transient)
+  | "FIRED"      // confirmed observed
+  | "ACK"        // acknowledged by the operator
+  | "DISMISSED"; // operator deemed irrelevant / false positive
+
+export interface Trigger {
+  id: string;
+  indicatorId: string;
+  nodeId: string;
+  simulationId: string;
+  state: TriggerState;
+  firedAt?: string;
+  acknowledgedAt?: string;
+  evidenceUrl?: string;
+  evidenceNote?: string;
 }
 
 export interface Scenario {

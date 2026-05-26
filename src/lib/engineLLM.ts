@@ -3,6 +3,7 @@
 // so the UI is identical regardless of backend.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { attachIndicatorsToSimulation } from "./engine";
 import type {
   CompetitorProfile,
   MoveCategory,
@@ -381,7 +382,7 @@ function assembleSimulation(
     }
   });
 
-  return {
+  const sim: Simulation = {
     id: `sim_${Date.now().toString(36)}`,
     createdAt: new Date().toISOString(),
     competitor: input.competitor,
@@ -393,6 +394,11 @@ function assembleSimulation(
     // (Not part of the canonical type; cast via index access.)
     ...({ usage } as Record<string, unknown>),
   } as Simulation;
+
+  // Attach deterministic indicators to OPPONENT nodes so triggers / watchlist
+  // work uniformly across backends.
+  attachIndicatorsToSimulation(sim);
+  return sim;
 }
 
 function clamp(n: number, lo: number, hi: number): number {

@@ -5,6 +5,8 @@
 
 import type {
   CompetitorProfile,
+  Indicator,
+  IndicatorSource,
   MoveCategory,
   MoveNode,
   OwnProfile,
@@ -172,6 +174,116 @@ const COUNTER_LIBRARY: Record<MoveCategory, string[]> = {
   ],
 };
 
+// ---------- Indicator library ----------
+// Each category maps to a small pool of observable leading indicators an
+// analyst could realistically pick up from public/streaming intel. Two of these
+// are deterministically attached to every OPPONENT node so triggers can be
+// armed and the watchlist has real content out of the box.
+interface IndicatorTemplate {
+  label: string;
+  source: IndicatorSource;
+  description: string;
+  weight: number; // base diagnostic weight 0..1
+}
+
+const INDICATOR_LIBRARY: Record<MoveCategory, IndicatorTemplate[]> = {
+  PRICING: [
+    { label: "Preisliste im Zielsegment verändert",  source: "PRICING",  description: "Öffentliche Preisliste oder SKU-Mix verschiebt sich im Top-Segment.", weight: 0.7 },
+    { label: "Promotional Discounting Top-50 Accounts", source: "PRICING", description: "Discount-Welle (>15%) bei strategischen Bestandskunden.", weight: 0.6 },
+    { label: "Multi-Year-Lock-In-Klauseln in RFPs",  source: "FILING",   description: "Vertragsentwürfe enthalten neue Laufzeit-/Exit-Klauseln.", weight: 0.5 },
+    { label: "Bundling-Ankündigung im Earnings Call", source: "NEWS",    description: "CFO oder CRO bestätigt Bundling-Initiative öffentlich.", weight: 0.65 },
+  ],
+  PRODUCT: [
+    { label: "Closed-Beta-Einladungen an Leuchtturm-Kunden", source: "NEWS", description: "Limited-Access-Beta wird über Vertrieb ausgerollt.", weight: 0.7 },
+    { label: "Patent-Filing zu Kerntechnologie",     source: "PATENT",   description: "Neue Patentanmeldung in Workflow/AI-Bereich.", weight: 0.6 },
+    { label: "Stellenausschreibungen für Plattform-Engineering", source: "HIRING", description: "Senior-Platform-Roles im LinkedIn-Hiring-Funnel.", weight: 0.55 },
+    { label: "Roadmap-Leak via Analystengespräch",   source: "NEWS",     description: "Indirekt geleakte Roadmap-Slides via Gartner/Forrester.", weight: 0.5 },
+  ],
+  "M&A": [
+    { label: "Banker-Aktivität / Bain-Mandat",       source: "NEWS",     description: "Strategic Advisor mandatiert, M&A-Pipeline-Hinweise.", weight: 0.75 },
+    { label: "Antitrust-Voranfrage in Brüssel",      source: "REGULATORY", description: "Pre-notification bei EU-Kartellbehörde sichtbar.", weight: 0.8 },
+    { label: "Sondierungs-Term-Sheets bei Targets",  source: "FILING",   description: "Term-Sheet-Bewegung bei wahrscheinlichem Übernahmeziel.", weight: 0.7 },
+    { label: "CFO-Wechsel oder Corp-Dev VP-Hire",    source: "HIRING",   description: "Neuer Corp-Dev-Lead aus Banking-Hintergrund.", weight: 0.55 },
+  ],
+  TALENT: [
+    { label: "Senior-Level LinkedIn-Hires in Vertikal", source: "HIRING", description: "≥3 Director+ Hires aus konkurrierenden Logos.", weight: 0.7 },
+    { label: "Acqui-Hire Press Release",             source: "NEWS",     description: "PR über Team-Übernahme eines Wettbewerbers.", weight: 0.65 },
+    { label: "Standort-Eröffnung in Talent-Hub",     source: "NEWS",     description: "Neues Office in Berlin/Zürich/Bangalore angekündigt.", weight: 0.5 },
+    { label: "Equity-Refresher-Programm gestartet",  source: "SOCIAL",   description: "Glassdoor-Mentions zu Refresher-Grants nehmen zu.", weight: 0.45 },
+  ],
+  GEO: [
+    { label: "Lokale Entity-Registrierung",          source: "FILING",   description: "Tochtergesellschaft im Zielmarkt registriert.", weight: 0.7 },
+    { label: "Country-Manager-Job-Posting",          source: "HIRING",   description: "C-Level-Vacancy für regionalen Markteintritt.", weight: 0.65 },
+    { label: "Pilot mit Anchor-Logo im Zielmarkt",   source: "NEWS",     description: "Case Study/Press Release mit lokalem Schlüsselkunden.", weight: 0.6 },
+    { label: "Channel-Partner-Vertrag im Zielland",  source: "CHANNEL",  description: "Reseller-/Distributor-Vertrag öffentlich gemacht.", weight: 0.55 },
+  ],
+  CHANNEL: [
+    { label: "Reseller-Margin-Erhöhung kommuniziert", source: "CHANNEL", description: "Partner-Briefing dokumentiert Margenanpassung.", weight: 0.6 },
+    { label: "Direct-Sales-Force Hiring-Welle",      source: "HIRING",   description: "Field-Sales-Job-Postings >20 in 30 Tagen.", weight: 0.65 },
+    { label: "Marketplace-Exklusiv-Listing",         source: "NEWS",     description: "AWS/Azure Marketplace-Exklusivvertrag publiziert.", weight: 0.55 },
+    { label: "Channel-Policy-Update öffentlich",     source: "FILING",   description: "Partner-Code-of-Conduct verschärft.", weight: 0.5 },
+  ],
+  BRAND: [
+    { label: "Comparative Campaign / Anti-Status-Quo-Ads", source: "NEWS", description: "Frontale Marketingkampagne gegen Marktführer.", weight: 0.7 },
+    { label: "Konferenz-Keynote Slot priorisiert",   source: "NEWS",     description: "Founder/CEO-Keynote auf Tier-1-Konferenz.", weight: 0.5 },
+    { label: "Long-Form-Manifest oder Whitepaper",   source: "SOCIAL",   description: "Strategie-Manifest auf Substack/HBR.", weight: 0.45 },
+    { label: "Rebranding-Filing (Trademark, Domain)", source: "FILING",  description: "Neue Trademarks/Domain-Akquisen.", weight: 0.55 },
+  ],
+  REGULATORY: [
+    { label: "EU-Lobbying-Register-Eintrag aktualisiert", source: "REGULATORY", description: "Lobbying-Budget / Themen-Eintrag in Brüssel.", weight: 0.65 },
+    { label: "Antitrust-Beschwerde gegen Wettbewerber", source: "REGULATORY", description: "Eingereichte Beschwerde bei Bundeskartellamt/EU.", weight: 0.75 },
+    { label: "SOC2/ISO/EU-AI-Act Zertifizierungs-PR", source: "NEWS",    description: "Compliance-Zertifikat öffentlich verkündet.", weight: 0.5 },
+    { label: "Datenresidenz-Push für regulierte Branche", source: "REGULATORY", description: "Lokale Datacenter-Strategie kommuniziert.", weight: 0.55 },
+  ],
+  CAPITAL: [
+    { label: "Term-Sheet-Leak bei Tier-1-VC",        source: "CAPITAL",  description: "Funding-Round mit Lead-Investor wird platziert.", weight: 0.8 },
+    { label: "IPO-Underwriter-Mandat veröffentlicht", source: "FILING",  description: "S-1-Vorbereitung / Underwriter-Beauty-Contest.", weight: 0.7 },
+    { label: "Buyback-Programm angekündigt",         source: "CAPITAL",  description: "Board genehmigt Aktienrückkaufprogramm.", weight: 0.5 },
+    { label: "Cost-Reduction-Programm im Earnings Call", source: "NEWS", description: "Restructuring-Plan / Layoff-Welle kommuniziert.", weight: 0.55 },
+  ],
+  PARTNERSHIP: [
+    { label: "Hyperscaler Co-Sell Slot gewonnen",    source: "NEWS",     description: "Strategic-Partnership-Tier mit AWS/Azure/GCP.", weight: 0.65 },
+    { label: "Open-Source-Foundation gegründet",     source: "FILING",   description: "OSS-Stiftung mit eigenem Kerntech eingebracht.", weight: 0.55 },
+    { label: "Exklusivvertrag mit Schlüsselzulieferer", source: "CHANNEL", description: "Long-term-Supply-Lock-in beim kritischen Component.", weight: 0.6 },
+    { label: "Ecosystem-Allianz-Announcement",       source: "NEWS",     description: "Joint Statement mit Komplementäranbieter-Konsortium.", weight: 0.5 },
+  ],
+};
+
+/**
+ * Idempotently attach indicators to every OPPONENT node in a simulation
+ * (used after assembling LLM-produced trees, where indicator generation isn't
+ * part of the model contract). Deterministic given the simulation id + node id.
+ */
+export function attachIndicatorsToSimulation(sim: Simulation): void {
+  const seedBase = hashString(sim.id);
+  for (const id in sim.nodes) {
+    const node = sim.nodes[id];
+    if (node.actor !== "OPPONENT") continue;
+    if (node.indicators && node.indicators.length > 0) continue;
+    const r = rng(seedBase ^ hashString(id));
+    node.indicators = buildIndicators(node, r);
+  }
+}
+
+function buildIndicators(node: MoveNode, rand: () => number): Indicator[] {
+  if (node.actor !== "OPPONENT") return [];
+  const pool = INDICATOR_LIBRARY[node.category] ?? [];
+  if (pool.length === 0) return [];
+  // Deterministic shuffle, pick top-2.
+  const order = pool
+    .map((t, i) => ({ t, i, r: rand() }))
+    .sort((a, b) => a.r - b.r)
+    .slice(0, Math.min(2, pool.length));
+  return order.map(({ t, i }) => ({
+    id: `${node.id}-ind${i}`,
+    nodeId: node.id,
+    label: t.label,
+    source: t.source,
+    description: t.description,
+    weight: t.weight,
+  }));
+}
+
 const POSTURE_RATIONALE: Record<Posture, string> = {
   AGGRESSIVE:    "Maximierung des Druckpotenzials, akzeptiert hohe Risiken zur Umverteilung von Marktanteilen.",
   EXPANSIVE:     "Volumen vor Marge — Reichweite, Distribution und neue Geografien dominieren das Kalkül.",
@@ -333,6 +445,9 @@ export function simulate(
             counters: actor === "OPPONENT" ? COUNTER_LIBRARY[pl.cat].slice(0, 3) : [],
             children: [],
           };
+          if (node.actor === "OPPONENT") {
+            node.indicators = buildIndicators(node, r);
+          }
           nodes[id] = node;
           parent.children.push(id);
           next.push(id);
