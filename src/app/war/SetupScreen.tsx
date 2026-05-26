@@ -83,9 +83,11 @@ export function SetupScreen({ onStart, error }: Props) {
             </p>
             <p className="mt-5 text-black/70 text-base md:text-lg leading-relaxed max-w-xl">
               Type one paragraph about your business. We simulate the worst-feared
-              AI-native competitor for you, then play it out — five turn-based
-              rounds. You pick a move, they counter, the board evolves. At the
-              end you see why, and what to do this week.
+              AI-native competitor for you, then play it out — five rounds. They
+              strike first. You commit a portfolio of counters across pricing,
+              product, talent, capital, channel, brand, IP, regulatory — max one
+              per category, constrained by capital. At the end you see why, and
+              what to do this week.
             </p>
           </div>
 
