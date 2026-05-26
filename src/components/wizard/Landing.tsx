@@ -74,21 +74,43 @@ export function Landing() {
               HELM // STRATEGIC FORESIGHT
             </div>
             <h1 className="font-display text-4xl md:text-5xl tracking-tight text-ink-1000 leading-[1.05] mb-4">
-              Strategic foresight for competitive markets.
+              Anticipate the AI-native competitor that will hurt you most.
             </h1>
             <p className="text-lg text-ink-700 leading-relaxed">
-              Map your business. Anticipate your competitor. Decide your next
-              move.
+              Premortem on the disruptor that doesn't exist yet.
+            </p>
+            <p className="text-[14px] text-ink-600 leading-relaxed mt-3">
+              HELM models your strategy + the most dangerous AI-native
+              challenger across BMC, VPC, capabilities, and 3–5 rounds of
+              moves.
             </p>
           </header>
 
           <div className="space-y-3">
+            {/* The star — Worst Feared AI-Native Competitor. */}
+            <a
+              href="/start?mode=wfc"
+              className="block w-full text-left border-l-4 border-ink-900 border-r border-y border-r-ink-900 border-y-ink-900 bg-ink-1000 text-ink-0 px-6 py-6 transition-colors group hover:bg-ink-900"
+            >
+              <div className="flex items-baseline justify-between mb-1.5 gap-3">
+                <span className="text-[20px] tracking-tight text-ink-0 leading-tight">
+                  <span className="text-ink-0 mr-1.5">★</span>
+                  Worst feared AI-native competitor
+                </span>
+                <span className="font-mono text-[10px] tracking-widest text-ink-300 whitespace-nowrap">
+                  PRIMARY · ~5 MIN
+                </span>
+              </div>
+              <p className="text-[14px] leading-relaxed text-ink-200">
+                Pick the pattern that scares you. We'll model their topology
+                and your exposure.
+              </p>
+            </a>
             <CTACard
               href="/start"
               title="Start fresh"
-              subtitle="Map your business and one move you're considering. Express or deep mode."
+              subtitle="Map your own business and the move you're considering. Express or deep."
               kicker="NEW PROJECT"
-              primary
             />
             <CTACard
               onClick={handleTryExample}
@@ -96,17 +118,14 @@ export function Landing() {
               subtitle="Open the HELM CORP vs MERIDIAN INDUSTRIES demo — a DACH compliance SaaS facing a well-funded incumbent."
               kicker="DEMO"
             />
-            <CTACard
-              onClick={() => setShowAllProjects((v) => !v)}
-              title="Open project"
-              subtitle={
-                projects.length === 0
-                  ? "No saved projects yet. They appear here once you save one from the dashboard."
-                  : `${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`
-              }
-              kicker={projects.length === 0 ? "EMPTY" : `${projects.length} SAVED`}
-              disabled={projects.length === 0}
-            />
+            {projects.length > 0 && (
+              <CTACard
+                onClick={() => setShowAllProjects((v) => !v)}
+                title="Open project"
+                subtitle={`${projects.length} saved project${projects.length === 1 ? "" : "s"} in this browser.`}
+                kicker={`${projects.length} SAVED`}
+              />
+            )}
 
             {showAllProjects && projects.length > 0 && (
               <div className="ml-6 mt-1 border-l border-ink-300 pl-4 space-y-1.5 py-2">
@@ -130,9 +149,11 @@ export function Landing() {
 
           <div className="mt-16 pt-8 border-t border-ink-200">
             <p className="font-mono text-[10px] tracking-widest text-ink-500 leading-relaxed">
-              HELM models your strategy + your competitor across three layers
-              — Business Model Canvas, Value Proposition Canvases,
-              Capabilities — and rolls out plausible moves 3–5 rounds ahead
+              For incumbents, the asymmetric threat is not a peer competitor
+              but an AI-native challenger — often one that doesn't yet exist.
+              HELM lets you premortem on that team before it shows up. Or map
+              your own business and competitor in detail across BMC, VPC,
+              capabilities, and 3–5 rounds ahead
               under multiple scenarios.
             </p>
           </div>

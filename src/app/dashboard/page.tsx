@@ -25,7 +25,7 @@ import {
   DEFAULT_OWN,
   DEFAULT_SCENARIOS,
 } from "@/lib/presets";
-import { getActiveProject } from "@/lib/store";
+import { getActiveProject, type WFCContext } from "@/lib/store";
 import { EngineToggle, type EngineMode } from "@/components/EngineToggle";
 import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { ProjectPanel } from "@/components/ProjectPanel";
@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [opsTab, setOpsTab] = useState<"WATCH" | "TRAJECTORY">("WATCH");
   const [topologySide, setTopologySide] = useState<"OWN" | "OPPONENT">("OWN");
+  const [wfc, setWfc] = useState<WFCContext | undefined>(undefined);
 
   useEffect(() => {
     const id =
@@ -77,6 +78,7 @@ export default function DashboardPage() {
       if (active.scenarios && active.scenarios.length > 0) {
         setScenarios(active.scenarios);
       }
+      setWfc(active.wfc);
     }
   }, []);
 
@@ -133,7 +135,7 @@ export default function DashboardPage() {
   }, [engine]);
 
   const handleOpenBriefing = () => {
-    stashBriefing(sim);
+    stashBriefing(sim, wfc);
     window.open("/briefing", "_blank", "noopener,noreferrer");
   };
 
