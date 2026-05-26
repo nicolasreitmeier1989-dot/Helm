@@ -99,3 +99,23 @@ body {
   background-position: center;
   background-repeat: no-repeat;
 }
+
+/* VPC Fit chart — "their fit" stripe pattern */
+.vpc-stripe {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #525252 0,
+    #525252 3px,
+    #d4d4d4 3px,
+    #d4d4d4 6px
+  );
+}
+.vpc-stripe-inline {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0,0,0,0.55) 0,
+    rgba(0,0,0,0.55) 3px,
+    rgba(0,0,0,0.18) 3px,
+    rgba(0,0,0,0.18) 6px
+  );
+}

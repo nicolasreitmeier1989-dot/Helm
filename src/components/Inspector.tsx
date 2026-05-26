@@ -1,6 +1,6 @@
 "use client";
 
-import type { Simulation, Trigger } from "@/lib/types";
+import type { Simulation, TopologyDelta, Trigger } from "@/lib/types";
 import { BarMeter, Card, Label, Stat } from "./Chrome";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
 import { fireTrigger, ackTrigger, dismissTrigger, resetTrigger } from "@/lib/triggers";
@@ -135,6 +135,32 @@ export function NodeDetail({
           <Label>Rationale</Label>
           <div className="text-[12px] text-ink-800 leading-relaxed">{node.rationale}</div>
         </div>
+
+        {node.deltas && node.deltas.length > 0 && (
+          <div>
+            <Label>Move Delta</Label>
+            <ul className="space-y-1.5">
+              {node.deltas.map((d, i) => (
+                <li key={i} className="border border-ink-300/60 bg-ink-100/40 px-2.5 py-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="font-mono text-[10px] tracking-widest text-ink-900">
+                      {deltaOpGlyph(d)} {d.op} · {d.layer}
+                    </span>
+                    <span className="font-mono text-[9px] tracking-widest text-ink-500">
+                      MAG {d.magnitude}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[10px] tracking-wider text-ink-500 mb-1">
+                    {deltaTargetLabel(d)}
+                  </div>
+                  <div className="text-[11.5px] text-ink-900 leading-tight">
+                    {d.description}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {ancestors.length > 0 && (
           <div>
@@ -283,4 +309,37 @@ export function NodeDetail({
       </div>
     </Card>
   );
+}
+
+// ---------- delta presentation helpers ----------
+
+function deltaOpGlyph(d: TopologyDelta): string {
+  switch (d.op) {
+    case "ADD": return "+";
+    case "STRENGTHEN": return "↑";
+    case "WEAKEN": return "↓";
+    case "REMOVE": return "−";
+    case "MIGRATE": return "⤴";
+  }
+}
+
+function deltaTargetLabel(d: TopologyDelta): string {
+  const t = d.target;
+  if (t.kind === "CAPABILITY") {
+    return `CAPABILITY · ${t.dimension}${
+      d.newLabel ? ` · "${d.newLabel}"` : ""
+    }`;
+  }
+  if (t.kind === "BMC_BLOCK") {
+    return `BMC · ${humanBlockKind(t.blockKind)}${
+      d.newLabel ? ` · "${d.newLabel}"` : ""
+    }`;
+  }
+  return `VPC · ${t.side} · ${t.itemKind}${
+    d.newLabel ? ` · "${d.newLabel}"` : ""
+  }`;
+}
+
+function humanBlockKind(k: string): string {
+  return k.replace(/_/g, " ").toLowerCase();
 }

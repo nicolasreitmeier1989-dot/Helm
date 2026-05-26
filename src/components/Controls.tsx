@@ -6,45 +6,6 @@ import { BarMeter, Card, Label } from "./Chrome";
 
 const POSTURES: Posture[] = ["AGGRESSIVE", "EXPANSIVE", "DEFENSIVE", "OPPORTUNISTIC", "CONSERVATIVE"];
 
-function Input({
-  label,
-  value,
-  onChange,
-  mono = false,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  mono?: boolean;
-  multiline?: boolean;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id}>
-        <Label>{label}</Label>
-      </label>
-      {multiline ? (
-        <textarea
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          className={`w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2.5 py-2 text-[12px] outline-none focus:border-ink-700 focus:bg-ink-50 transition-colors resize-y ${mono ? "font-mono" : ""}`}
-        />
-      ) : (
-        <input
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2.5 py-2 text-[12px] outline-none focus:border-ink-700 focus:bg-ink-50 transition-colors ${mono ? "font-mono" : ""}`}
-        />
-      )}
-    </div>
-  );
-}
-
 function Range({
   label,
   value,
@@ -89,7 +50,12 @@ function Range({
   );
 }
 
-export function CompetitorPanel({
+/**
+ * OpponentSummary — the legacy posture / warChest / innovation / brand /
+ * leadership-bias / signals controls. These remain on the competitor profile
+ * as summary signals derived/maintained alongside the full topology.
+ */
+export function OpponentSummary({
   competitor,
   onChange,
 }: {
@@ -100,31 +66,49 @@ export function CompetitorPanel({
     onChange({ ...competitor, [k]: v });
 
   return (
-    <Card title="OPPONENT PROFILE" meta="UNIT // 01">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input label="Codename / Firma" value={competitor.name} onChange={(v) => set("name", v.toUpperCase())} mono />
-        <Input label="Industrie / Segment" value={competitor.industry} onChange={(v) => set("industry", v)} />
-        <Range
-          label="Marktanteil"
-          value={Math.round(competitor.marketShare * 100)}
-          min={0}
-          max={80}
-          onChange={(v) => set("marketShare", v / 100)}
-          suffix="%"
-        />
-        <Range label="Kriegskasse / Liquidität" value={competitor.warChest} min={0} max={100} onChange={(v) => set("warChest", v)} />
-        <Range label="Innovationsindex" value={competitor.innovationIndex} min={0} max={100} onChange={(v) => set("innovationIndex", v)} />
-        <Range label="Markenmacht" value={competitor.brandPower} min={0} max={100} onChange={(v) => set("brandPower", v)} />
+    <Card title="OPPONENT SUMMARY" meta="LEGACY SIGNALS">
+      <div className="grid grid-cols-1 gap-3">
+        <div>
+          <Label>Codename / Firma</Label>
+          <input
+            value={competitor.name}
+            onChange={(e) => set("name", e.target.value.toUpperCase())}
+            className="w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2 py-1.5 text-[12px] font-mono outline-none focus:border-ink-700"
+          />
+        </div>
+        <div>
+          <Label>Industrie / Segment</Label>
+          <input
+            value={competitor.industry}
+            onChange={(e) => set("industry", e.target.value)}
+            className="w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2 py-1.5 text-[12px] outline-none focus:border-ink-700"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Range
+            label="Marktanteil"
+            value={Math.round(competitor.marketShare * 100)}
+            min={0}
+            max={80}
+            onChange={(v) => set("marketShare", v / 100)}
+            suffix="%"
+          />
+          <Range label="Kriegskasse" value={competitor.warChest} min={0} max={100} onChange={(v) => set("warChest", v)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Range label="Innovation" value={competitor.innovationIndex} min={0} max={100} onChange={(v) => set("innovationIndex", v)} />
+          <Range label="Marke" value={competitor.brandPower} min={0} max={100} onChange={(v) => set("brandPower", v)} />
+        </div>
       </div>
 
-      <div className="mt-5">
-        <Label>Haltung / Posture</Label>
+      <div className="mt-4">
+        <Label>Posture</Label>
         <div className="grid grid-cols-5 gap-1.5">
           {POSTURES.map((p) => (
             <button
               key={p}
               onClick={() => set("posture", p)}
-              className={`font-mono text-[10px] tracking-widest py-2 border transition-colors ${
+              className={`font-mono text-[9px] tracking-widest py-1.5 border transition-colors ${
                 competitor.posture === p
                   ? "border-ink-900 bg-ink-900 text-ink-0"
                   : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
@@ -136,7 +120,7 @@ export function CompetitorPanel({
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <Range
           label="Leadership-Bias  ◀ Visionär · Optimierer ▶"
           value={competitor.leadershipBias}
@@ -146,11 +130,11 @@ export function CompetitorPanel({
         />
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <Label>Beobachtete Signale ({competitor.recentSignals.length})</Label>
         <ul className="space-y-1">
           {competitor.recentSignals.map((s, i) => (
-            <li key={i} className="flex items-start gap-2 text-[12px] font-mono text-ink-800">
+            <li key={i} className="flex items-start gap-2 text-[11.5px] font-mono text-ink-800">
               <span className="text-ink-500 mt-0.5">›</span>
               <input
                 value={s}
@@ -173,7 +157,7 @@ export function CompetitorPanel({
         </ul>
         <button
           onClick={() => set("recentSignals", [...competitor.recentSignals, "Neues Signal …"])}
-          className="mt-2 font-mono text-[10px] tracking-widest text-ink-600 hover:text-ink-900"
+          className="mt-1.5 font-mono text-[10px] tracking-widest text-ink-600 hover:text-ink-900"
         >
           + SIGNAL HINZUFÜGEN
         </button>
@@ -182,7 +166,11 @@ export function CompetitorPanel({
   );
 }
 
-export function OwnPanel({
+/**
+ * OwnSummary — minimal name/intent/horizon controls that pair with the
+ * RumeltKernel + TopologyEditor.
+ */
+export function OwnSummary({
   own,
   onChange,
 }: {
@@ -191,18 +179,43 @@ export function OwnPanel({
 }) {
   const set = <K extends keyof OwnProfile>(k: K, v: OwnProfile[K]) => onChange({ ...own, [k]: v });
   return (
-    <Card title="OWN POSITION" meta="UNIT // 00">
-      <div className="grid grid-cols-1 gap-4">
-        <Input label="Unsere Organisation" value={own.name} onChange={(v) => set("name", v.toUpperCase())} mono />
-        <Input label="Strategische Intent" value={own.intent} onChange={(v) => set("intent", v)} multiline />
-        <Input label="Eröffnungszug (Runde 1)" value={own.openingMove} onChange={(v) => set("openingMove", v)} multiline />
-        <div className="grid grid-cols-2 gap-4">
-          <Range label="Vorausschau (Runden)" value={own.horizonRounds} min={2} max={5} onChange={(v) => set("horizonRounds", v)} />
-          <Range label="Branching pro Knoten" value={own.branchingFactor} min={2} max={4} onChange={(v) => set("branchingFactor", v)} />
+    <Card title="OWN SUMMARY" meta="META">
+      <div className="grid grid-cols-1 gap-3">
+        <div>
+          <Label>Unsere Organisation</Label>
+          <input
+            value={own.name}
+            onChange={(e) => set("name", e.target.value.toUpperCase())}
+            className="w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2 py-1.5 text-[12px] font-mono outline-none focus:border-ink-700"
+          />
+        </div>
+        <div>
+          <Label>Strategische Intent</Label>
+          <textarea
+            value={own.intent}
+            onChange={(e) => set("intent", e.target.value)}
+            rows={2}
+            className="w-full bg-ink-100 border border-ink-300/60 text-ink-900 px-2 py-1.5 text-[12px] outline-none focus:border-ink-700 resize-y"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Range label="Horizon (Runden)" value={own.horizonRounds} min={2} max={5} onChange={(v) => set("horizonRounds", v)} />
+          <Range label="Branching" value={own.branchingFactor} min={2} max={4} onChange={(v) => set("branchingFactor", v)} />
         </div>
       </div>
     </Card>
   );
+}
+
+// ---------- Legacy panels (kept for backward compatibility, no longer
+// rendered from page.tsx). External code or tests may still reference them.
+
+export function CompetitorPanel(props: { competitor: CompetitorProfile; onChange: (c: CompetitorProfile) => void }) {
+  return <OpponentSummary {...props} />;
+}
+
+export function OwnPanel(props: { own: OwnProfile; onChange: (o: OwnProfile) => void }) {
+  return <OwnSummary {...props} />;
 }
 
 export function ScenarioPanel({

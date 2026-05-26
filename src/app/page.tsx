@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, Stat, TopBar } from "@/components/Chrome";
 import {
-  CompetitorPanel,
-  OwnPanel,
+  OpponentSummary,
+  OwnSummary,
   ScenarioPanel,
 } from "@/components/Controls";
 import { MoveTree } from "@/components/MoveTree";
@@ -21,15 +21,25 @@ import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { ProjectPanel } from "@/components/ProjectPanel";
 import { WatchlistPanel } from "@/components/WatchlistPanel";
 import { TrajectoryTracker } from "@/components/TrajectoryTracker";
+import { TopologyEditor } from "@/components/TopologyEditor";
+import { RumeltKernel } from "@/components/RumeltKernel";
+import { BMCComparison } from "@/components/BMCComparison";
+import { VPCFitChart } from "@/components/VPCFitChart";
 import {
   armTriggersForSimulation,
   listTriggersForSimulation,
 } from "@/lib/triggers";
-import type { Simulation, Trigger } from "@/lib/types";
+import type {
+  CompetitorProfile,
+  OwnProfile,
+  Simulation,
+  StrategicTopology,
+  Trigger,
+} from "@/lib/types";
 
 export default function HelmPage() {
-  const [competitor, setCompetitor] = useState(DEFAULT_COMPETITOR);
-  const [own, setOwn] = useState(DEFAULT_OWN);
+  const [competitor, setCompetitor] = useState<CompetitorProfile>(DEFAULT_COMPETITOR);
+  const [own, setOwn] = useState<OwnProfile>(DEFAULT_OWN);
   const [scenarios, setScenarios] = useState(DEFAULT_SCENARIOS);
   const [seedNonce, setSeedNonce] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -40,6 +50,7 @@ export default function HelmPage() {
   const [llmError, setLlmError] = useState<string | null>(null);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [opsTab, setOpsTab] = useState<"WATCH" | "TRAJECTORY">("WATCH");
+  const [topologySide, setTopologySide] = useState<"OWN" | "OPPONENT">("OWN");
 
   useEffect(() => {
     const id =
@@ -49,7 +60,6 @@ export default function HelmPage() {
     setSessionId(id);
   }, []);
 
-  // Heuristic simulation — instantaneous, always available.
   const heuristicSim = useMemo(
     () =>
       simulate(competitor, own, scenarios, {
@@ -61,8 +71,6 @@ export default function HelmPage() {
   const sim = engine === "CLAUDE" && llmSim ? llmSim : heuristicSim;
   const idx = threatIndex(sim);
 
-  // Arm triggers whenever the active simulation changes, then mirror them
-  // into local state so child panels can react.
   useEffect(() => {
     armTriggersForSimulation(sim);
     setTriggers(listTriggersForSimulation(sim.id));
@@ -97,7 +105,6 @@ export default function HelmPage() {
     }
   };
 
-  // When the user switches to CLAUDE mode and there's no LLM sim yet, kick a run.
   useEffect(() => {
     if (engine === "CLAUDE" && !llmSim && !llmRunning && !llmError) {
       void runClaude();
@@ -122,6 +129,18 @@ export default function HelmPage() {
     setLlmSim(null);
     setLlmError(null);
   };
+
+  const updateTopology = (next: StrategicTopology) => {
+    if (topologySide === "OWN") {
+      setOwn({ ...own, topology: next });
+    } else {
+      setCompetitor({ ...competitor, topology: next });
+    }
+  };
+
+  const activeTopology =
+    topologySide === "OWN" ? own.topology : competitor.topology;
+  const activeName = topologySide === "OWN" ? own.name : competitor.name;
 
   return (
     <main className="min-h-screen bg-ink-0 text-ink-900">
@@ -190,8 +209,8 @@ export default function HelmPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr_380px] gap-px bg-ink-300/60">
-        {/* LEFT: inputs */}
+      <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr_420px] gap-px bg-ink-300/60">
+        {/* LEFT: kernel + topology editor + summary controls */}
         <aside className="bg-ink-0 p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto xl:sticky xl:top-12">
           <EngineToggle
             mode={engine}
@@ -199,12 +218,52 @@ export default function HelmPage() {
             isRunning={llmRunning}
             lastError={llmError}
           />
-          <OwnPanel own={own} onChange={setOwn} />
-          <CompetitorPanel competitor={competitor} onChange={setCompetitor} />
+          <RumeltKernel own={own} onChange={setOwn} />
+
+          {/* OWN / OPPONENT toggle for the topology editor */}
+          <div className="flex items-center gap-2 px-1">
+            <span className="font-mono text-[10px] tracking-widest text-ink-500">
+              EDIT //
+            </span>
+            <button
+              onClick={() => setTopologySide("OWN")}
+              className={`flex-1 font-mono text-[10px] tracking-widest px-2 py-1.5 border transition-colors ${
+                topologySide === "OWN"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+            >
+              OWN · {own.name}
+            </button>
+            <button
+              onClick={() => setTopologySide("OPPONENT")}
+              className={`flex-1 font-mono text-[10px] tracking-widest px-2 py-1.5 border transition-colors ${
+                topologySide === "OPPONENT"
+                  ? "border-ink-900 bg-ink-900 text-ink-0"
+                  : "border-ink-300/60 text-ink-700 hover:border-ink-700 hover:text-ink-900"
+              }`}
+            >
+              OPP · {competitor.name}
+            </button>
+          </div>
+
+          <TopologyEditor
+            which={topologySide}
+            name={activeName}
+            topology={activeTopology}
+            onChange={updateTopology}
+          />
+
+          {topologySide === "OWN" ? (
+            <OwnSummary own={own} onChange={setOwn} />
+          ) : (
+            <OpponentSummary competitor={competitor} onChange={setCompetitor} />
+          )}
+
           <ScenarioPanel scenarios={scenarios} onChange={setScenarios} />
         </aside>
 
-        {/* CENTER: tree */}
+        {/* CENTER: tree + path + sensitivity + STRATEGIC OPS */}
         <section className="bg-ink-0 p-4 space-y-4">
           {llmRunning && engine === "CLAUDE" && (
             <div className="border border-ink-900 bg-ink-100 p-3 font-mono text-[11px] tracking-wider text-ink-1000">
@@ -235,7 +294,7 @@ export default function HelmPage() {
             scenarios={scenarios}
           />
 
-          {/* Strategic Operations Center — Phase 1 */}
+          {/* Strategic Operations Center */}
           <div className="flex items-center gap-2 px-1">
             <span className="font-mono text-[10px] tracking-widest text-ink-500">
               STRATEGIC OPS //
@@ -277,8 +336,10 @@ export default function HelmPage() {
           )}
         </section>
 
-        {/* RIGHT: analysis + history */}
+        {/* RIGHT: BMC compare + VPC fit + threat + inspector + projects */}
         <aside className="bg-ink-0 p-4 space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto xl:sticky xl:top-12">
+          <BMCComparison own={own} competitor={competitor} />
+          <VPCFitChart own={own} competitor={competitor} />
           <ThreatPanel sim={sim} />
           <NodeDetail
             sim={sim}
