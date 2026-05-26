@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { loadBriefing } from "@/lib/briefing";
 import { categoryHeatmap, threatIndex, topPaths } from "@/lib/engine";
-import { bmcOverlapScore, labelsMatch } from "@/lib/topology";
+import {
+  bmcOverlapScore,
+  findEmergingCollisions,
+  labelsMatch,
+} from "@/lib/topology";
 import type { Simulation, TopologyDelta } from "@/lib/types";
 
 export default function BriefingPage() {
@@ -200,6 +204,55 @@ export default function BriefingPage() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* EMERGING CAPABILITY COLLISIONS — set-layer race-on signals */}
+          <section className="mb-6">
+            <h2 className="font-mono text-[10px] tracking-widest text-neutral-500 mb-2">
+              EMERGING CAPABILITY COLLISIONS
+            </h2>
+            {(() => {
+              const collisions = findEmergingCollisions(
+                sim.own.topology,
+                sim.competitor.topology,
+              );
+              if (collisions.length === 0) {
+                return (
+                  <p className="text-[11px] text-neutral-700 italic">
+                    Keine direkten Kollisionen auf Capability-Set-Ebene.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {collisions.map((c, i) => (
+                    <div key={i} className="border border-black p-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-[13px] font-semibold leading-tight">
+                          {c.name}
+                        </div>
+                        <span className="font-mono text-[9px] tracking-widest text-neutral-600">
+                          {c.dimension}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 font-mono text-[10px] text-neutral-700">
+                        <div>
+                          <span className="text-neutral-500">OURS: </span>
+                          {c.ours.lifecycle} · era {c.ours.era}
+                        </div>
+                        <div>
+                          <span className="text-neutral-500">THEIRS: </span>
+                          {c.theirs.lifecycle} · era {c.theirs.era}
+                        </div>
+                      </div>
+                      <div className="text-[10.5px] text-neutral-700 italic mt-1 leading-snug">
+                        {collisionCaption(c.ours.lifecycle, c.theirs.lifecycle)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </section>
 
           <section className="mb-6">
@@ -433,10 +486,37 @@ function opGlyph(d: TopologyDelta): string {
   }
 }
 
+function collisionCaption(ours: string, theirs: string): string {
+  if (ours === "EMERGING" && theirs === "EMERGING") {
+    return "Beide Seiten früh; das Rennen ist offen.";
+  }
+  if (ours === "EMERGING" && theirs === "GROWING") {
+    return "Wir EMERGING, sie GROWING — Aufholrennen, Zeitfenster eng.";
+  }
+  if (ours === "GROWING" && theirs === "EMERGING") {
+    return "Wir GROWING, sie EMERGING — wir haben Vorsprung, aber er ist erodierbar.";
+  }
+  if (ours === "GROWING" && theirs === "GROWING") {
+    return "Parallel-Wachstum auf gleichem Feld — Differenzierungskampf.";
+  }
+  if (ours === "MATURE" && (theirs === "EMERGING" || theirs === "GROWING")) {
+    return "Wir reif, sie in Frühphase — Disruptions-Risiko, Verteidigungsmodus.";
+  }
+  if ((ours === "EMERGING" || ours === "GROWING") && theirs === "MATURE") {
+    return "Wir früh, sie reif — wir greifen die etablierte Position an.";
+  }
+  return "Beide Seiten halten Position im Set; das Tempo bestimmt das Spiel.";
+}
+
 function humanTarget(d: TopologyDelta): string {
   const t = d.target;
   if (t.kind === "CAPABILITY") {
     return `${t.dimension}${d.newLabel ? ` "${d.newLabel}"` : ""}`;
+  }
+  if (t.kind === "CAPABILITY_SET") {
+    return `capability set${t.dimension ? ` ${t.dimension}` : ""}${
+      d.newLabel ? ` "${d.newLabel}"` : ""
+    }`;
   }
   if (t.kind === "BMC_BLOCK") {
     return `${t.blockKind.replace(/_/g, " ").toLowerCase()}${d.newLabel ? ` "${d.newLabel}"` : ""}`;

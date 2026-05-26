@@ -140,24 +140,38 @@ export function NodeDetail({
           <div>
             <Label>Move Delta</Label>
             <ul className="space-y-1.5">
-              {node.deltas.map((d, i) => (
-                <li key={i} className="border border-ink-300/60 bg-ink-100/40 px-2.5 py-1.5">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="font-mono text-[10px] tracking-widest text-ink-900">
-                      {deltaOpGlyph(d)} {d.op} · {d.layer}
-                    </span>
-                    <span className="font-mono text-[9px] tracking-widest text-ink-500">
-                      MAG {d.magnitude}
-                    </span>
-                  </div>
-                  <div className="font-mono text-[10px] tracking-wider text-ink-500 mb-1">
-                    {deltaTargetLabel(d)}
-                  </div>
-                  <div className="text-[11.5px] text-ink-900 leading-tight">
-                    {d.description}
-                  </div>
-                </li>
-              ))}
+              {node.deltas.map((d, i) => {
+                const isNewSet =
+                  d.target.kind === "CAPABILITY_SET" && d.op === "ADD";
+                return (
+                  <li
+                    key={i}
+                    className="border border-ink-300/60 bg-ink-100/40 px-2.5 py-1.5"
+                  >
+                    {isNewSet && (
+                      <div className="mb-1.5">
+                        <span className="inline-block bg-ink-900 text-ink-0 font-mono tracking-widest text-[9px] px-1.5 py-0.5">
+                          ⚡ NEW CAPABILITY SET
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className="font-mono text-[10px] tracking-widest text-ink-900">
+                        {deltaOpGlyph(d)} {d.op} · {d.layer}
+                      </span>
+                      <span className="font-mono text-[9px] tracking-widest text-ink-500">
+                        MAG {d.magnitude}
+                      </span>
+                    </div>
+                    <div className="font-mono text-[10px] tracking-wider text-ink-500 mb-1">
+                      {deltaTargetLabel(d)}
+                    </div>
+                    <div className="text-[11.5px] text-ink-900 leading-tight">
+                      {d.description}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -327,6 +341,11 @@ function deltaTargetLabel(d: TopologyDelta): string {
   const t = d.target;
   if (t.kind === "CAPABILITY") {
     return `CAPABILITY · ${t.dimension}${
+      d.newLabel ? ` · "${d.newLabel}"` : ""
+    }`;
+  }
+  if (t.kind === "CAPABILITY_SET") {
+    return `CAPABILITY-SET${t.dimension ? ` · ${t.dimension}` : ""}${
       d.newLabel ? ` · "${d.newLabel}"` : ""
     }`;
   }
